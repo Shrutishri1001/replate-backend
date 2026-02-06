@@ -74,6 +74,47 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: [true, 'Pincode is required'],
         trim: true
+    },
+
+    // Geolocation for map tracking
+    location: {
+        lat: {
+            type: Number,
+            default: null
+        },
+        lng: {
+            type: Number,
+            default: null
+        }
+    },
+
+    // Volunteer specific fields
+    isAvailable: {
+        type: Boolean,
+        default: false
+    },
+    volunteerProfile: {
+        vehicleType: {
+            type: String,
+            enum: ['bicycle', 'two_wheeler', 'car', 'van'],
+            default: 'two_wheeler'
+        },
+        serviceRadius: {
+            type: Number,
+            default: 5
+        },
+        preferredAreas: [{
+            type: String
+        }],
+        availabilitySchedule: {
+            mon: { active: { type: Boolean, default: true }, slots: [{ start: String, end: String }] },
+            tue: { active: { type: Boolean, default: true }, slots: [{ start: String, end: String }] },
+            wed: { active: { type: Boolean, default: true }, slots: [{ start: String, end: String }] },
+            thu: { active: { type: Boolean, default: true }, slots: [{ start: String, end: String }] },
+            fri: { active: { type: Boolean, default: true }, slots: [{ start: String, end: String }] },
+            sat: { active: { type: Boolean, default: false }, slots: [{ start: String, end: String }] },
+            sun: { active: { type: Boolean, default: false }, slots: [{ start: String, end: String }] }
+        }
     }
 }, {
     timestamps: true

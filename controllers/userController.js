@@ -25,6 +25,10 @@ const getProfile = async (req, res) => {
             city: user.city,
             state: user.state,
             pincode: user.pincode,
+            location: user.location,
+            isAvailable: user.isAvailable,
+            vehicleType: user.vehicleType,
+            volunteerProfile: user.volunteerProfile,
             createdAt: user.createdAt,
             updatedAt: user.updatedAt
         });
@@ -54,7 +58,10 @@ const updateProfile = async (req, res) => {
             address,
             city,
             state,
-            pincode
+            pincode,
+            location,
+            isAvailable,
+            vehicleType
         } = req.body;
 
         // Update only provided fields
@@ -74,6 +81,13 @@ const updateProfile = async (req, res) => {
             if (dailyCapacity !== undefined) user.dailyCapacity = dailyCapacity;
         }
 
+        // Volunteer-specific fields
+        if (user.role === 'volunteer') {
+            if (location !== undefined) user.location = location;
+            if (isAvailable !== undefined) user.isAvailable = isAvailable;
+            if (vehicleType !== undefined) user.vehicleType = vehicleType;
+        }
+
         const updatedUser = await user.save();
 
         res.json({
@@ -90,6 +104,10 @@ const updateProfile = async (req, res) => {
             city: updatedUser.city,
             state: updatedUser.state,
             pincode: updatedUser.pincode,
+            location: updatedUser.location,
+            isAvailable: updatedUser.isAvailable,
+            vehicleType: updatedUser.vehicleType,
+            volunteerProfile: updatedUser.volunteerProfile,
             updatedAt: updatedUser.updatedAt
         });
     } catch (error) {
