@@ -58,6 +58,14 @@ exports.register = async (req, res) => {
       userData.dailyCapacity = dailyCapacity;
     }
 
+    if (role === "volunteer" && req.body.volunteerProfile) {
+      userData.volunteerProfile = {
+        vehicleType: req.body.volunteerProfile.vehicleType,
+        maxWeight: req.body.volunteerProfile.maxWeight,
+        availabilitySchedule: req.body.volunteerProfile.availabilitySchedule
+      };
+    }
+
     const user = await User.create(userData);
 
     res.status(201).json({
@@ -74,6 +82,8 @@ exports.register = async (req, res) => {
       city: user.city,
       state: user.state,
       pincode: user.pincode,
+      status: user.status,
+      verificationStatus: user.verificationStatus,
       token: generateToken(user._id),
     });
   } catch (error) {
@@ -107,6 +117,8 @@ exports.login = async (req, res) => {
         city: user.city,
         state: user.state,
         pincode: user.pincode,
+        status: user.status,
+        verificationStatus: user.verificationStatus,
         token: generateToken(user._id),
       });
     } else {
