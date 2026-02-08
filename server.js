@@ -24,6 +24,9 @@ app.use('/api/requests', require('./routes/request'));
 app.use('/api/assignments', require('./routes/assignment'));
 app.use('/api/map', require('./routes/map'));
 
+const adminRoutes = require('./routes/admin');
+app.use('/admin', adminRoutes);
+
 // Basic route
 app.get('/', (req, res) => {
     res.json({ message: 'FoodShare API is running' });
