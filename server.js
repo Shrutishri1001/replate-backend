@@ -25,7 +25,7 @@ app.use('/api/assignments', require('./routes/assignment'));
 app.use('/api/map', require('./routes/map'));
 
 const adminRoutes = require('./routes/admin');
-app.use('/admin', adminRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Basic route
 app.get('/', (req, res) => {
