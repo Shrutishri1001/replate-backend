@@ -37,16 +37,48 @@ exports.createRequest = async (req, res) => {
             });
         }
 
-        // Create request
+        // Create request and auto-accept for NGO
         const request = await Request.create({
             donation: donationId,
             ngo: req.user._id,
+            status: 'accepted',
+            acceptedAt: Date.now(),
             notes
         });
 
+        // Update donation status to accepted
+        donation.status = 'accepted';
+        donation.acceptedBy = req.user._id;
+        donation.acceptedAt = Date.now();
+        await donation.save();
+
         const populatedRequest = await Request.findById(request._id)
             .populate('donation')
-            .populate('ngo', 'name email organization');
+            .populate('ngo', 'fullName email organizationName city');
+
+        // Trigger notifications for volunteers
+        try {
+            const User = require('../models/User');
+            const { createNotification } = require('./notificationController');
+
+            const cityToMatch = donation.city || req.user.city;
+            const volunteers = await User.find({
+                role: 'volunteer',
+                city: { $regex: new RegExp(`^${cityToMatch}$`, 'i') }
+            });
+
+            for (const volunteer of volunteers) {
+                await createNotification({
+                    recipient: volunteer._id,
+                    title: 'New Assignment Available',
+                    message: `A new donation "${donation.foodName}" is ready for pickup in ${cityToMatch}.`,
+                    type: 'new_assignment',
+                    data: { donationId: donation._id }
+                });
+            }
+        } catch (notifyError) {
+            console.error('Notification error in createRequest:', notifyError);
+        }
 
         res.status(201).json({
             success: true,

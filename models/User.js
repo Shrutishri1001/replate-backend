@@ -30,21 +30,9 @@ const userSchema = new mongoose.Schema({
     role: {
         type: String,
         required: [true, 'Role is required'],
-        enum: ['donor', 'ngo', 'volunteer','admin'],
+        enum: ['donor', 'ngo', 'volunteer'],
         lowercase: true
     },
-    status: {
-    type: String,
-    enum: ['active', 'disabled'],
-    default: 'active'
-    },
-    verificationStatus: {
-    type: String,
-    enum: ['pending', 'under_review', 'approved', 'rejected'],
-    default: 'pending'
-    },
-
-
 
     // Organization fields
     organizationName: {
@@ -110,6 +98,10 @@ const userSchema = new mongoose.Schema({
             type: String,
             enum: ['bicycle', 'two_wheeler', 'car', 'van'],
             default: 'two_wheeler'
+        },
+        maxWeight: {
+            type: Number,
+            default: 10
         },
         serviceRadius: {
             type: Number,
