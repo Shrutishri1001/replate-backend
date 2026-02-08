@@ -6,7 +6,10 @@
     "scripts": {
         "start": "node server.js",
         "dev": "nodemon server.js",
-        "create-admin": "node scripts/createAdmin.js"
+        "create-admin": "node scripts/createAdmin.js",
+        "test": "node test/run-all-tests.js",
+        "test:user": "node test/user-flows.test.js",
+        "test:admin": "node test/admin-auth.test.js"
     },
     "keywords": [
         "foodshare",
