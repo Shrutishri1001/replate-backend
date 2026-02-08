@@ -99,6 +99,10 @@ const userSchema = new mongoose.Schema({
             enum: ['bicycle', 'two_wheeler', 'car', 'van'],
             default: 'two_wheeler'
         },
+        maxWeight: {
+            type: Number,
+            default: 10
+        },
         serviceRadius: {
             type: Number,
             default: 5

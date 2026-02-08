@@ -1,6 +1,6 @@
 const express = require('express');
-const dotenv = require('dotenv');
 const cors = require('cors');
+const dotenv = require('dotenv');
 const connectDB = require('./config/db');
 
 // Load env vars
@@ -23,6 +23,7 @@ app.use('/api/donations', require('./routes/donation'));
 app.use('/api/requests', require('./routes/request'));
 app.use('/api/assignments', require('./routes/assignment'));
 app.use('/api/map', require('./routes/map'));
+app.use('/api/notifications', require('./routes/notification'));
 
 // Basic route
 app.get('/', (req, res) => {

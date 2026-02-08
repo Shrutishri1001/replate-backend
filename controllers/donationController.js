@@ -1,4 +1,6 @@
 const Donation = require('../models/Donation');
+const User = require('../models/User');
+const { createNotification } = require('./notificationController');
 
 // @desc    Create new donation
 // @route   POST /api/donations
@@ -71,10 +73,17 @@ exports.getAvailableDonations = async (req, res) => {
             .populate('donor', 'name organization city')
             .sort('-createdAt');
 
+        // Filter out expired donations
+        const availableDonations = donations.filter(d => {
+            if (!d.expiryDate || !d.expiryTime) return true;
+            const expiryDateTime = new Date(`${d.expiryDate}T${d.expiryTime}`);
+            return new Date() < expiryDateTime;
+        });
+
         res.status(200).json({
             success: true,
-            count: donations.length,
-            data: donations
+            count: availableDonations.length,
+            data: availableDonations
         });
     } catch (error) {
         console.error('Error fetching available donations:', error);
@@ -241,11 +250,54 @@ exports.acceptDonation = async (req, res) => {
             });
         }
 
+        if (req.user.role === 'ngo') {
+            donation.acceptedBy = req.user._id;
+        } else {
+            donation.assignedTo = req.user._id;
+        }
+
         donation.status = 'accepted';
-        donation.assignedTo = req.user._id;
         donation.acceptedAt = new Date();
 
         await donation.save();
+
+        // Notify volunteers if accepted by NGO
+        if (req.user.role === 'ngo') {
+            try {
+                const cityToMatch = donation.city || req.user.city;
+                const volunteers = await User.find({
+                    role: 'volunteer',
+                    'volunteerProfile.availabilitySchedule': { $exists: true },
+                    city: { $regex: new RegExp(`^${donation.city || req.user.city}$`, 'i') }
+                });
+
+                const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+                const today = days[new Date().getDay()];
+
+                for (const volunteer of volunteers) {
+                    // Check if volunteer is active at ALL in their schedule
+                    const scheduleObj = volunteer.volunteerProfile?.availabilitySchedule || {};
+                    const isAnyDayActive = Object.values(scheduleObj).some(day => day.active);
+
+                    if (isAnyDayActive) {
+                        // Check capacity
+                        const dQty = Number(donation.quantity);
+                        const vMax = Number(volunteer.volunteerProfile?.maxWeight);
+                        if (donation.unit !== 'kg' || isNaN(vMax) || vMax >= dQty) {
+                            await createNotification({
+                                recipient: volunteer._id,
+                                title: 'New Assignment Available',
+                                message: `A new donation "${donation.foodName}" is ready for pickup in ${donation.city || cityToMatch}.`,
+                                type: 'new_assignment',
+                                data: { donationId: donation._id }
+                            });
+                        }
+                    }
+                }
+            } catch (notifyError) {
+                console.error('Notification error in acceptDonation:', notifyError);
+            }
+        }
 
         res.status(200).json({
             success: true,
@@ -324,6 +376,29 @@ exports.markDelivered = async (req, res) => {
         donation.deliveredAt = new Date();
 
         await donation.save();
+
+        // Notify Donor and NGO
+        try {
+            await createNotification({
+                recipient: donation.donor,
+                title: 'Donation Delivered',
+                message: `Your donation of ${donation.foodName} has been successfully delivered.`,
+                type: 'status_update',
+                data: { donationId: donation._id }
+            });
+
+            if (donation.acceptedBy) {
+                await createNotification({
+                    recipient: donation.acceptedBy,
+                    title: 'Delivery Complete',
+                    message: `The donation ${donation.foodName} you accepted has been delivered.`,
+                    type: 'status_update',
+                    data: { donationId: donation._id }
+                });
+            }
+        } catch (notifyError) {
+            console.error('Notification error in markDelivered:', notifyError);
+        }
 
         res.status(200).json({
             success: true,
