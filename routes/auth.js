@@ -9,7 +9,7 @@ const registerValidation = [
     body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
     body('fullName').notEmpty().withMessage('Full name is required'),
     body('phone').notEmpty().withMessage('Phone number is required'),
-    body('role').isIn(['donor', 'ngo', 'volunteer']).withMessage('Invalid role'),
+    body('role').isIn(['donor', 'ngo', 'volunteer', 'admin']).withMessage('Invalid role'),
     body('address').notEmpty().withMessage('Address is required'),
     body('city').notEmpty().withMessage('City is required'),
     body('state').notEmpty().withMessage('State is required'),

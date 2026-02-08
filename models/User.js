@@ -30,9 +30,21 @@ const userSchema = new mongoose.Schema({
     role: {
         type: String,
         required: [true, 'Role is required'],
-        enum: ['donor', 'ngo', 'volunteer'],
+        enum: ['donor', 'ngo', 'volunteer','admin'],
         lowercase: true
     },
+    status: {
+    type: String,
+    enum: ['active', 'disabled'],
+    default: 'active'
+    },
+    verificationStatus: {
+    type: String,
+    enum: ['pending', 'under_review', 'approved', 'rejected'],
+    default: 'pending'
+    },
+
+
 
     // Organization fields
     organizationName: {
