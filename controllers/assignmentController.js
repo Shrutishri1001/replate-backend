@@ -575,3 +575,93 @@ exports.updateVolunteerProfile = async (req, res) => {
         res.status(500).json({ message: 'Server error', error: error.message });
     }
 };
+
+
+// MAP CONTROLLER BACKEND 
+
+
+exports.getAssignmentMapData = async (req, res) => {
+  try {
+    const assignment = await Assignment.findById(req.params.id)
+      .populate("donation")
+      .populate("donor")
+      .populate("volunteer");
+
+    if (!assignment) {
+      return res.status(404).json({ message: "Assignment not found" });
+    }
+
+    // ✅ FETCH CONSUMER (NGO) FROM DONATION
+    const consumer = await User.findById(assignment.donation.acceptedBy);
+
+    res.json({
+      assignmentId: assignment._id,
+      status: assignment.status,
+
+      volunteerLocation: assignment.currentLocation || null,
+
+      // ✅ DONOR = pickup
+      donorLocation: assignment.donation.location,
+
+      // ✅ CONSUMER = NGO
+      consumerLocation: consumer?.location || null,
+
+      volunteerAddress: assignment.volunteer.address,
+      donorAddress: assignment.donation.pickupAddress,
+      consumerAddress: consumer?.address || null,
+    });
+  } catch (err) {
+    console.error("Map data error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.updateAssignmentLocation = async (req, res) => {
+    try {
+        const { lat, lng } = req.body;
+
+        if (lat == null || lng == null) {
+            return res.status(400).json({ message: "lat & lng required" });
+        }
+
+        const assignment = await Assignment.findById(req.params.id);
+        if (!assignment) {
+            return res.status(404).json({ message: "Assignment not found" });
+        }
+
+        assignment.currentLocation = {
+            lat,
+            lng,
+            lastUpdated: new Date()
+        };
+
+        if (assignment.status === "accepted") {
+            assignment.status = "in_transit";
+            assignment.startedAt = new Date();
+        }
+
+        await assignment.save();
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error("Location update error:", err);
+        res.status(500).json({ error: err.message });
+    }
+
+};
+
+// @desc    Get active assignment for logged-in volunteer
+// @route   GET /api/assignments/volunteer-active
+// @access  Private (Volunteer)
+exports.getActiveAssignmentForVolunteer = async (req, res) => {
+    const assignment = await Assignment.findOne({
+        volunteer: req.user._id,
+        status: { $in: ["accepted", "in_transit"] }
+    }).sort({ createdAt: -1 });
+
+    if (!assignment) {
+        return res.status(404).json({ message: "No active assignment" });
+    }
+
+    res.json(assignment);
+};
