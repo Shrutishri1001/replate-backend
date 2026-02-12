@@ -42,3 +42,11 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
     console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
 });
+
+
+// backend api for maps 
+const assignmentRoutes = require("./routes/assignmentRoutes");
+
+app.use("/api/assignments", assignmentRoutes);
+
+
