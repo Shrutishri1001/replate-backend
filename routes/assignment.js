@@ -10,11 +10,15 @@ const {
     getAllAssignments,
     getAvailableAssignments,
     claimAssignment,
-    updateVolunteerProfile
+    updateVolunteerProfile,
+    getAssignmentMapData
 } = require('../controllers/assignmentController');
 const { protect } = require('../middleware/auth');
 
-// All routes require authentication
+// Public routes (no auth required)
+router.get('/:id/map', getAssignmentMapData);
+
+// All other routes require authentication
 router.use(protect);
 
 // Assignment routes

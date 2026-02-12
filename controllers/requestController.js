@@ -271,6 +271,12 @@ exports.assignVolunteer = async (req, res) => {
         request.assignedAt = Date.now();
         await request.save();
 
+        // Update donation status and assigned volunteer
+        await require('../models/Donation').findByIdAndUpdate(request.donation, {
+            status: 'assigned',
+            assignedTo: volunteerId
+        });
+
         const updatedRequest = await Request.findById(request._id)
             .populate('donation')
             .populate('ngo', 'fullName email organizationName')
