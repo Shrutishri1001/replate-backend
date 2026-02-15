@@ -51,6 +51,7 @@ const updateProfile = async (req, res) => {
 
         // Editable fields
         const {
+            fullName,
             phone,
             organizationName,
             organizationType,
@@ -65,6 +66,7 @@ const updateProfile = async (req, res) => {
         } = req.body;
 
         // Update only provided fields
+        if (fullName !== undefined) user.fullName = fullName;
         if (phone !== undefined) user.phone = phone;
         if (address !== undefined) user.address = address;
         if (city !== undefined) user.city = city;

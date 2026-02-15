@@ -1,13 +1,14 @@
 const express = require('express');
-const dotenv = require('dotenv');
 const cors = require('cors');
+const dotenv = require('dotenv');
 const connectDB = require('./config/db');
-
+const PORT = process.env.PORT ?? 5000;
 // Load env vars
 dotenv.config();
 
 // Connect to database
-connectDB();
+// Connect to database (now handled conditionally)
+// connectDB();
 
 const app = express();
 
@@ -23,9 +24,8 @@ app.use('/api/donations', require('./routes/donation'));
 app.use('/api/requests', require('./routes/request'));
 app.use('/api/assignments', require('./routes/assignment'));
 app.use('/api/map', require('./routes/map'));
-
-const adminRoutes = require('./routes/admin');
-app.use('/api/admin', adminRoutes);
+app.use('/api/notifications', require('./routes/notification'));
+app.use('/api/admin', require('./routes/admin'));
 
 // Basic route
 app.get('/', (req, res) => {
@@ -38,8 +38,18 @@ app.use((err, req, res, next) => {
     res.status(500).json({ message: 'Something went wrong!', error: err.message });
 });
 
-const PORT = process.env.PORT || 5000;
+// Only listen if run directly
+if (require.main === module) {
+    // Connect to database only when running server
+    connectDB();
 
-app.listen(PORT, () => {
-    console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
-});
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+        console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+    });
+}
+
+module.exports = app;
+
+
+

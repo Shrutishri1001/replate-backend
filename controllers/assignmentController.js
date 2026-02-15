@@ -1,6 +1,7 @@
 const Assignment = require('../models/Assignment');
 const Donation = require('../models/Donation');
 const User = require('../models/User');
+const { createNotification } = require('./notificationController');
 
 // @desc    Create new assignment (assign donation to volunteer)
 // @route   POST /api/assignments/create
@@ -25,6 +26,23 @@ exports.createAssignment = async (req, res) => {
             return res.status(404).json({ message: 'Volunteer not found' });
         }
 
+        // Validate weight capacity if weight is specified in kg
+        const donationQty = Number(donation.quantity);
+        const volunteerMaxWeight = Number(volunteer.volunteerProfile?.maxWeight);
+
+        if (donation.unit === 'kg' && !isNaN(volunteerMaxWeight) && volunteerMaxWeight < donationQty) {
+            return res.status(400).json({ message: `Volunteer delivery capacity (${volunteerMaxWeight}kg) is less than the food weight (${donationQty}kg)` });
+        }
+
+        // Validate volunteer schedule for today
+        const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+        const today = days[new Date().getDay()];
+        const schedule = volunteer.volunteerProfile?.availabilitySchedule?.[today];
+
+        if (!schedule || !schedule.active) {
+            return res.status(400).json({ message: `Volunteer is not available according to their weekly schedule for today (${today})` });
+        }
+
         // Check if assignment already exists
         const existingAssignment = await Assignment.findOne({
             donation: donationId,
@@ -45,6 +63,19 @@ exports.createAssignment = async (req, res) => {
         // Update donation status
         donation.assignedTo = volunteerId;
         await donation.save();
+
+        // Notify volunteer
+        try {
+            await createNotification({
+                recipient: volunteerId,
+                title: 'New Assignment Assigned',
+                message: `You have been assigned a pickup for ${donation.foodName}.`,
+                type: 'new_assignment',
+                data: { donationId: donation._id }
+            });
+        } catch (notifyError) {
+            console.error('Notification error in createAssignment:', notifyError);
+        }
 
         const populatedAssignment = await Assignment.findById(assignment._id)
             .populate('donation')
@@ -212,6 +243,29 @@ exports.completeAssignment = async (req, res) => {
                     deliveredAt: new Date()
                 }
             );
+
+            // Notify Donor and NGO
+            try {
+                await createNotification({
+                    recipient: donation.donor,
+                    title: 'Food Delivered',
+                    message: `Your donation ${donation.foodName} has been delivered to the recipient.`,
+                    type: 'status_update',
+                    data: { donationId: donation._id }
+                });
+
+                if (donation.acceptedBy) {
+                    await createNotification({
+                        recipient: donation.acceptedBy,
+                        title: 'Delivery Successful',
+                        message: `The food for ${donation.foodName} has been delivered by the volunteer.`,
+                        type: 'status_update',
+                        data: { donationId: donation._id }
+                    });
+                }
+            } catch (notifyError) {
+                console.error('Notification error in completeAssignment:', notifyError);
+            }
         }
 
         const populatedAssignment = await Assignment.findById(assignment._id)
@@ -255,8 +309,27 @@ exports.cancelAssignment = async (req, res) => {
         const donation = await Donation.findById(assignment.donation);
         if (donation) {
             donation.assignedTo = null;
-            donation.status = 'pending';
+            donation.status = 'pending'; // Reset to pending if volunteer cancels? Or 'accepted' if NGO still wants it?
+            // If it was already accepted by NGO, it should stay 'accepted' but assignedTo = null
+            if (donation.acceptedBy) {
+                donation.status = 'accepted';
+            }
             await donation.save();
+
+            // Notify NGO if applicable
+            if (donation.acceptedBy) {
+                try {
+                    await createNotification({
+                        recipient: donation.acceptedBy,
+                        title: 'Assignment Cancelled',
+                        message: `The volunteer has cancelled the pickup for ${donation.foodName}. It is available for other volunteers.`,
+                        type: 'assignment_update',
+                        data: { donationId: donation._id }
+                    });
+                } catch (notifyError) {
+                    console.error('Notification error in cancelAssignment:', notifyError);
+                }
+            }
         }
 
         const populatedAssignment = await Assignment.findById(assignment._id)
@@ -302,23 +375,66 @@ exports.getAvailableAssignments = async (req, res) => {
     try {
         const { lat, lng, radius, type } = req.query;
 
-        // Base query: Accepted donations that are not assigned
+        // Force fetch fresh user with profile
+        const User = require('../models/User');
+        const volunteer = await User.findById(req.user._id);
+        const volunteerCity = volunteer.city;
+
+        // Base query: Accepted donations that are not assigned to a volunteer
+        // Must be accepted by an NGO
         const query = {
             status: 'accepted',
-            assignedTo: null
+            assignedTo: null,
+            acceptedBy: { $exists: true, $ne: null }
         };
 
-        // TODO: Add geospatial query if lat/lng provided
-        // if (lat && lng) { ... }
-
         const assignments = await Donation.find(query)
-            .populate('donor', '-password') // Populate donor info for location
+            .populate('donor', '-password')
             .sort({ createdAt: -1 });
 
-        // Calculate distances if lat/lng provided and filter by radius
-        // This is a basic implementation. For production, use MongoDB $geoNear
+        // Intelligence Filtering: Filter by volunteer's schedule and capacity
+        const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+        const today = days[new Date().getDay()];
+        const schedule = volunteer.volunteerProfile?.availabilitySchedule?.[today];
 
-        res.status(200).json(assignments);
+        // If profile is missing or schedule is missing, we default to whatever the role says
+        // but for safety, if they have NO schedule defined, we might want to show them tasks anyway?
+        // However, user said "fitting", so let's assume schedule exists.
+        const isScheduledToday = schedule ? schedule.active : true;
+
+        console.log(`Volunteer ${volunteer.fullName} (ID: ${volunteer._id}) - Schedule today (${today}): ${isScheduledToday ? 'Active' : 'Inactive'}`);
+
+        const filteredAssignments = assignments.filter(d => {
+            // 1. City Matching (Case-insensitive)
+            const donationCity = (d.city || d.donor?.city || '').toLowerCase().trim();
+            const vCity = (volunteerCity || '').toLowerCase().trim();
+
+            if (vCity && donationCity && vCity !== donationCity) {
+                return false;
+            }
+
+            // 2. Exclude expired
+            if (d.expiryDate && d.expiryTime) {
+                const expiryDateTime = new Date(`${d.expiryDate}T${d.expiryTime}`);
+                if (new Date() > expiryDateTime) return false;
+            }
+
+            // 3. Check capacity if unit is kg
+            const dQty = Number(d.quantity) || 0;
+            const vMax = Number(volunteer.volunteerProfile?.maxWeight);
+
+            // Only filter if vMax is a positive number. If 0 or NaN, assume no limit for now.
+            if (d.unit === 'kg' && !isNaN(vMax) && vMax > 0) {
+                if (vMax < dQty) return false;
+            }
+
+            // 4. Check schedule
+            if (!isScheduledToday) return false;
+
+            return true;
+        });
+
+        res.status(200).json(filteredAssignments);
     } catch (error) {
         console.error('Get available assignments error:', error);
         res.status(500).json({ message: 'Server error', error: error.message });
@@ -343,6 +459,29 @@ exports.claimAssignment = async (req, res) => {
             return res.status(400).json({ message: 'Donation is no longer available' });
         }
 
+        // Validate volunteer (self)
+        const volunteer = await User.findById(volunteerId);
+        if (!volunteer) {
+            return res.status(404).json({ message: 'Volunteer not found' });
+        }
+
+        // Validate weight capacity if weight is specified in kg
+        const donationWeight = Number(donation.quantity);
+        const myMaxWeight = Number(volunteer.volunteerProfile?.maxWeight);
+
+        if (donation.unit === 'kg' && !isNaN(myMaxWeight) && myMaxWeight < donationWeight) {
+            return res.status(400).json({ message: `Your delivery capacity (${myMaxWeight}kg) is less than the food weight (${donationWeight}kg)` });
+        }
+
+        // Validate volunteer schedule for today
+        const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+        const today = days[new Date().getDay()];
+        const schedule = volunteer.volunteerProfile?.availabilitySchedule?.[today];
+
+        if (!schedule || !schedule.active) {
+            return res.status(400).json({ message: `You are not scheduled to be available today (${today})` });
+        }
+
         // Create assignment (Implicitly, or explicitly if using Assignment model)
         // We use Assignment model to track history
         const assignment = await Assignment.create({
@@ -364,6 +503,21 @@ exports.claimAssignment = async (req, res) => {
         donation.assignedTo = volunteerId;
         donation.status = 'assigned';
         await donation.save();
+
+        // Notify NGO if applicable
+        if (donation.acceptedBy) {
+            try {
+                await createNotification({
+                    recipient: donation.acceptedBy,
+                    title: 'Assignment Claimed',
+                    message: `Volunteer ${volunteer.fullName} has claimed the pickup for ${donation.foodName}.`,
+                    type: 'assignment_update',
+                    data: { donationId: donation._id }
+                });
+            } catch (notifyError) {
+                console.error('Notification error in claimAssignment:', notifyError);
+            }
+        }
 
         // Sync Request status
         const Request = require('../models/Request');
@@ -395,7 +549,7 @@ exports.claimAssignment = async (req, res) => {
 exports.updateVolunteerProfile = async (req, res) => {
     try {
         const userId = req.user.id;
-        const { isAvailable, vehicleType, serviceRadius, preferredAreas, availabilitySchedule } = req.body;
+        const { isAvailable, vehicleType, maxWeight, serviceRadius, preferredAreas, availabilitySchedule } = req.body;
 
         const user = await User.findById(userId);
         if (!user) {
@@ -404,10 +558,11 @@ exports.updateVolunteerProfile = async (req, res) => {
 
         if (isAvailable !== undefined) user.isAvailable = isAvailable;
 
-        if (vehicleType || serviceRadius || preferredAreas || availabilitySchedule) {
+        if (vehicleType || maxWeight !== undefined || serviceRadius || preferredAreas || availabilitySchedule) {
             if (!user.volunteerProfile) user.volunteerProfile = {};
 
             if (vehicleType) user.volunteerProfile.vehicleType = vehicleType;
+            if (maxWeight !== undefined) user.volunteerProfile.maxWeight = maxWeight;
             if (serviceRadius) user.volunteerProfile.serviceRadius = serviceRadius;
             if (preferredAreas) user.volunteerProfile.preferredAreas = preferredAreas;
             if (availabilitySchedule) user.volunteerProfile.availabilitySchedule = availabilitySchedule;
@@ -419,4 +574,94 @@ exports.updateVolunteerProfile = async (req, res) => {
         console.error('Update volunteer profile error:', error);
         res.status(500).json({ message: 'Server error', error: error.message });
     }
+};
+
+
+// MAP CONTROLLER BACKEND 
+
+
+exports.getAssignmentMapData = async (req, res) => {
+  try {
+    const assignment = await Assignment.findById(req.params.id)
+      .populate("donation")
+      .populate("donor")
+      .populate("volunteer");
+
+    if (!assignment) {
+      return res.status(404).json({ message: "Assignment not found" });
+    }
+
+    // ✅ FETCH CONSUMER (NGO) FROM DONATION
+    const consumer = await User.findById(assignment.donation.acceptedBy);
+
+    res.json({
+      assignmentId: assignment._id,
+      status: assignment.status,
+
+      volunteerLocation: assignment.currentLocation || null,
+
+      // ✅ DONOR = pickup
+      donorLocation: assignment.donation.location,
+
+      // ✅ CONSUMER = NGO
+      consumerLocation: consumer?.location || null,
+
+      volunteerAddress: assignment.volunteer.address,
+      donorAddress: assignment.donation.pickupAddress,
+      consumerAddress: consumer?.address || null,
+    });
+  } catch (err) {
+    console.error("Map data error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.updateAssignmentLocation = async (req, res) => {
+    try {
+        const { lat, lng } = req.body;
+
+        if (lat == null || lng == null) {
+            return res.status(400).json({ message: "lat & lng required" });
+        }
+
+        const assignment = await Assignment.findById(req.params.id);
+        if (!assignment) {
+            return res.status(404).json({ message: "Assignment not found" });
+        }
+
+        assignment.currentLocation = {
+            lat,
+            lng,
+            lastUpdated: new Date()
+        };
+
+        if (assignment.status === "accepted") {
+            assignment.status = "in_transit";
+            assignment.startedAt = new Date();
+        }
+
+        await assignment.save();
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error("Location update error:", err);
+        res.status(500).json({ error: err.message });
+    }
+
+};
+
+// @desc    Get active assignment for logged-in volunteer
+// @route   GET /api/assignments/volunteer-active
+// @access  Private (Volunteer)
+exports.getActiveAssignmentForVolunteer = async (req, res) => {
+    const assignment = await Assignment.findOne({
+        volunteer: req.user._id,
+        status: { $in: ["accepted", "in_transit"] }
+    }).sort({ createdAt: -1 });
+
+    if (!assignment) {
+        return res.status(404).json({ message: "No active assignment" });
+    }
+
+    res.json(assignment);
 };
