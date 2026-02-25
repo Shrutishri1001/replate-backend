@@ -1,115 +1,69 @@
-# Backend API Tests
+# Test Engineer Guide - FoodShare Platform
 
-This directory contains unit tests for the Replate backend API using plain Node.js (no testing frameworks like Jest).
+As a Test Engineer for FoodShare, your goal is to ensure the platform is reliable, secure, and user-friendly.
 
-## Test Structure
+## 🧪 1. Automated Testing (Backend)
 
-- **admin-auth.test.js** - Admin authentication and authorization tests
-- **admin-user-management.test.js** - Admin CRUD operations for users
-- **admin-resources.test.js** - Admin access to donations, requests, and assignments
-- **user-flows.test.js** - User registration, login, and profile management tests
-- **run-all-tests.js** - Main test runner that executes all test suites
+We have built-in scripts to verify the core API health.
 
-## Prerequisites
-
-1. **Start the backend server:**
-   ```bash
-   npm start
-   # or
-   node server.js
-   ```
-
-2. **Create an admin user (required for admin tests):**
-   ```bash
-   node scripts/createAdmin.js
-   ```
-   
-   Use the following credentials for testing:
-   - Email: `admin@foodshare.com`
-   - Password: `admin123`
-
-## Running Tests
-
-### Run All Tests
+**Run Health Checks:**
 ```bash
-npm test
-# or
-node test/run-all-tests.js
+cd replate-backend
+node test-backend.js
 ```
+*   **What it checks**: Server status, DB connection, Login, Profile Fetch.
+*   **Success Criteria**: All checks passed with green checkmarks.
 
-### Run Individual Test Suites
-
-**User Flows (Registration & Authentication):**
+**Run Registration Flow:**
 ```bash
-node test/user-flows.test.js
+node test-register.js
 ```
+*   **What it checks**: Can a new user register? Does it handle duplicate emails correctly?
 
-**Admin Authentication:**
-```bash
-node test/admin-auth.test.js
-```
+---
 
-**Admin User Management:**
-```bash
-node test/run-all-tests.js
-```
-*Note: Admin tests require the admin token, so it's best to run through the main test runner*
+## 🖐️ 2. Manual Testing Scenarios
 
-## Test Coverage
+Perform these actions in the browser (`http://localhost:5173`) to verify end-to-end functionality.
 
-### User Flow Tests
-- ✅ Donor registration
-- ✅ NGO registration
-- ✅ Volunteer registration
-- ✅ Profile retrieval for each role
-- ✅ Profile updates
+### **Scenario A: User Onboarding**
+1.  **Register**: Go to `/register`. Sign up as a "Donor".
+    *   *Check*: Are you redirected to Login?
+2.  **Login**: Use the new credentials.
+    *   *Check*: Do you see the "Welcome Back" dashboard? Is the "New Donation" button visible?
+3.  **Logout**: Click "Logout" in the sidebar.
+    *   *Check*: Are you redirected back to Login?
 
-### Admin Authentication Tests
-- ✅ Regular user blocked from admin routes
-- ✅ Admin login
-- ✅ Admin dashboard access
-- ✅ Authorization verification
+### **Scenario B: Donation Flow (Donor)**
+1.  **Create Donation**: Click "Donate Food". Fill in details ("Rice", "Veg", "5kg", "Today").
+2.  **Submit**: Click "Submit Donation".
+    *   *Check*: Do you see the "Success" animation?
+3.  **Verify**: Go to "My Donations".
+    *   *Check*: Is the new item listed at the top? Is the status "Pending"?
 
-### Admin User Management Tests
-- ✅ Get all users
-- ✅ Create new user
-- ✅ Get user by ID
-- ✅ Update user
-- ✅ Toggle user status
-- ✅ Update verification status
-- ✅ Delete user
-- ✅ Verify deletion
+### **Scenario C: Search & Filter**
+1.  **Navigate**: Go to "My Donations".
+2.  **Search**: Type "Rice" in the search bar.
+    *   *Check*: Does the list filter down to only show the Rice item?
+3.  **Filter**: Select "Delivered" from the dropdown.
+    *   *Check*: Does the list show correct items (or empty state)?
 
-### Admin Resource Management Tests
-- ✅ Get all donations
-- ✅ Get all requests
-- ✅ Get all assignments
-- ✅ Dashboard statistics accuracy
+### **Scenario D: UI/UX & Responsiveness**
+1.  **Mobile View**: Press `F12` -> Toggle Device Toolbar -> Select "iPhone 12".
+    *   *Check*: Is the Sidebar hidden/collapsible? Is the text readable?
+2.  **Theme**: Verify the dark theme is consistent (no blinding white backgrounds).
 
-## Test Output
+---
 
-Tests provide detailed console output with:
-- ✅ Success indicators
-- ❌ Error messages
-- 📊 Data summaries
-- 🎉 Test completion status
+## 🐞 3. Bug Reporting Format
 
-## Notes
+If you find an issue, report it to the dev team using this format:
 
-- Tests use the `fetch` API (Node.js 18+)
-- No external testing frameworks required
-- Tests create temporary test users
-- Admin tests require pre-existing admin user
-- Server must be running on `http://localhost:5000`
-
-## Troubleshooting
-
-**Error: "Server is not running"**
-- Start the backend server: `npm start`
-
-**Error: "Admin user does not exist"**
-- Create admin user: `node scripts/createAdmin.js`
-
-**Error: "fetch is not defined"**
-- Upgrade to Node.js 18+ which includes fetch natively
-- Or install node-fetch: `npm install node-fetch`
+*   **Title**: [Short description, e.g., "Login button disabled on mobile"]
+*   **Severity**: Critical / Major / Minor
+*   **Steps to Reproduce**:
+    1. Go to Login page
+    2. Enter valid email
+    3. Observer 'Sign In' button
+*   **Expected**: Button should be green and clickable.
+*   **Actual**: Button is gray and unclickable.
