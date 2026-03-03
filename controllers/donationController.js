@@ -2,6 +2,19 @@ const Donation = require('../models/Donation');
 const User = require('../models/User');
 const { createNotification } = require('./notificationController');
 
+// Haversine formula to calculate distance between coordinates
+const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    if (!lat1 || !lon1 || !lat2 || !lon2) return Infinity;
+    const R = 6371; // Radius of the Earth in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+};
+
 // @desc    Create new donation
 // @route   POST /api/donations
 // @access  Private (Donor only)
@@ -13,6 +26,43 @@ exports.createDonation = async (req, res) => {
         };
 
         const donation = await Donation.create(donationData);
+
+        // Notify top 3 closest NGOs with available capacity
+        try {
+            const ngos = await User.find({ role: 'ngo', status: 'active' });
+            
+            const size = donation.estimatedServings || donation.quantity || 0;
+            const donationLat = donation.location?.lat;
+            const donationLng = donation.location?.lng;
+            
+            if (donationLat && donationLng) {
+                const matchedNgos = ngos.map(ngo => {
+                    const capacity = ngo.dailyCapacity || 0;
+                    let distance = Infinity;
+                    if (ngo.location?.lat && ngo.location?.lng) {
+                        distance = calculateDistance(donationLat, donationLng, ngo.location.lat, ngo.location.lng);
+                    }
+                    return { ngo, distance, capacity };
+                }).filter(match => {
+                    // Filter: within 10km radius and enough capacity for the donation size
+                    return match.distance <= 10 && size <= match.capacity;
+                }).sort((a, b) => a.distance - b.distance);
+
+                const topNgos = matchedNgos.slice(0, 3);
+                
+                for (const match of topNgos) {
+                    await createNotification({
+                        recipient: match.ngo._id,
+                        title: 'New Matched Donation Available',
+                        message: `A new donation of ${size} servings is available ${match.distance.toFixed(1)}km away.`,
+                        type: 'new_assignment',
+                        data: { donationId: donation._id }
+                    });
+                }
+            }
+        } catch (matchError) {
+            console.error('Error auto-matching NGOs:', matchError);
+        }
 
         res.status(201).json({
             success: true,
@@ -70,14 +120,32 @@ exports.getDonations = async (req, res) => {
 exports.getAvailableDonations = async (req, res) => {
     try {
         const donations = await Donation.find({ status: 'pending' })
-            .populate('donor', 'name organization city')
+            .populate('donor', 'name organization city location')
             .sort('-createdAt');
 
-        // Filter out expired donations
+        const ngoCapacity = req.user.dailyCapacity || 0;
+        const ngoLat = req.user.location?.lat;
+        const ngoLng = req.user.location?.lng;
+
+        // Filter out expired donations, capacity mismatch, or distance > 10km
         const availableDonations = donations.filter(d => {
-            if (!d.expiryDate || !d.expiryTime) return true;
-            const expiryDateTime = new Date(`${d.expiryDate}T${d.expiryTime}`);
-            return new Date() < expiryDateTime;
+            if (d.expiryDate && d.expiryTime) {
+                const expiryDateTime = new Date(`${d.expiryDate}T${d.expiryTime}`);
+                if (new Date() >= expiryDateTime) return false;
+            }
+
+            const size = d.estimatedServings || d.quantity || 0;
+            if (size > ngoCapacity) return false;
+
+            const dLat = d.location?.lat || (d.donor && d.donor.location?.lat);
+            const dLng = d.location?.lng || (d.donor && d.donor.location?.lng);
+
+            if (ngoLat && ngoLng && dLat && dLng) {
+                const distance = calculateDistance(ngoLat, ngoLng, dLat, dLng);
+                if (distance > 10) return false;
+            }
+
+            return true;
         });
 
         res.status(200).json({
@@ -261,6 +329,19 @@ exports.acceptDonation = async (req, res) => {
 
         await donation.save();
 
+        // Notify donor that NGO accepted
+        try {
+            await createNotification({
+                recipient: donation.donor,
+                title: 'Donation Accepted',
+                message: `Your donation has been accepted by ${req.user.organizationName || req.user.fullName}.`,
+                type: 'status_update',
+                data: { donationId: donation._id }
+            });
+        } catch (notifyError) {
+            console.error('Error notifying donor in acceptDonation:', notifyError);
+        }
+
         // Notify volunteers if accepted by NGO
         if (req.user.role === 'ngo') {
             try {
@@ -337,6 +418,29 @@ exports.markPickedUp = async (req, res) => {
         donation.pickedUpAt = new Date();
 
         await donation.save();
+
+        // Notify Donor and NGO
+        try {
+            await createNotification({
+                recipient: donation.donor,
+                title: 'Donation Picked Up',
+                message: `Your donation of ${donation.foodName || 'food'} has been picked up by the volunteer.`,
+                type: 'status_update',
+                data: { donationId: donation._id }
+            });
+
+            if (donation.acceptedBy) {
+                await createNotification({
+                    recipient: donation.acceptedBy,
+                    title: 'Donation on the Way',
+                    message: `The donation ${donation.foodName || 'food'} you accepted has been picked up and is on its way.`,
+                    type: 'status_update',
+                    data: { donationId: donation._id }
+                });
+            }
+        } catch (notifyError) {
+            console.error('Notification error in markPickedUp:', notifyError);
+        }
 
         res.status(200).json({
             success: true,
