@@ -56,6 +56,24 @@ exports.createRequest = async (req, res) => {
             .populate('donation')
             .populate('ngo', 'fullName email organizationName city');
 
+        // Notify the Donor
+        try {
+            const { createNotification } = require('./notificationController');
+            await createNotification({
+                recipient: donation.donor,
+                title: 'Donation Accepted',
+                message: `Good news! Your donation "${donation.foodName}" has been accepted by ${req.user.organizationName || req.user.fullName}. They will contact you shortly.`,
+                type: 'request_accepted',
+                data: {
+                    donationId: donation._id,
+                    ngoId: req.user._id,
+                    ngoPhone: req.user.phone
+                }
+            });
+        } catch (notifyError) {
+            console.error('Notification error (Donor) in createRequest:', notifyError);
+        }
+
         // Trigger notifications for volunteers
         try {
             const User = require('../models/User');
