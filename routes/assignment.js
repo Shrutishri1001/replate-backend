@@ -11,7 +11,8 @@ const {
     getAvailableAssignments,
     claimAssignment,
     updateVolunteerProfile,
-    getAssignmentMapData
+    getAssignmentMapData,
+    getActiveAssignmentForVolunteer
 } = require('../controllers/assignmentController');
 const { protect } = require('../middleware/auth');
 
@@ -26,6 +27,7 @@ router.get('/available', getAvailableAssignments);
 router.post('/claim', claimAssignment);
 router.post('/create', createAssignment);
 router.get('/', getAllAssignments);
+router.get('/volunteer-active', getActiveAssignmentForVolunteer);
 router.get('/volunteer/:volunteerId', getVolunteerAssignments);
 router.put('/:id/accept', acceptAssignment);
 router.put('/:id/update-location', updateLocation);

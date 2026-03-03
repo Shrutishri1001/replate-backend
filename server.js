@@ -26,6 +26,7 @@ app.use('/api/assignments', require('./routes/assignment'));
 app.use('/api/map', require('./routes/map'));
 app.use('/api/notifications', require('./routes/notification'));
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/impact', require('./routes/impactRoutes'));
 
 // Basic route
 app.get('/', (req, res) => {

@@ -1,6 +1,7 @@
 const Donation = require('../models/Donation');
 const User = require('../models/User');
 const { createNotification } = require('./notificationController');
+const geocodeAddress = require('../utils/geocoder');
 
 // Haversine formula to calculate distance between coordinates
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
@@ -24,6 +25,12 @@ exports.createDonation = async (req, res) => {
             donor: req.user._id,
             ...req.body
         };
+
+        // Geocode address (using pickup address)
+        const coordinates = await geocodeAddress(req.body.pickupAddress, req.body.city, req.body.pincode || '000000');
+        if (coordinates) {
+            donationData.location = coordinates;
+        }
 
         const donation = await Donation.create(donationData);
 
@@ -95,7 +102,7 @@ exports.getDonations = async (req, res) => {
         }
 
         const donations = await Donation.find({ donor: req.user._id })
-            .populate('acceptedBy', 'name organization')
+            .populate('acceptedBy', 'name organizationName phone fullName')
             .populate('assignedTo', 'fullName phone')
             .sort('-createdAt');
 
