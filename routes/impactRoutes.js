@@ -2,9 +2,17 @@ const express = require('express');
 const router = express.Router();
 const {
     getDonorImpact,
+    getDonorSustainability,
+    getDonorTrustBadge,
     getNgoImpact,
+    getNgoSustainability,
+    getNgoTrustBadge,
     getVolunteerImpact,
-    getAdminImpact
+    getVolunteerSustainability,
+    getVolunteerTrustBadge,
+    getAdminImpact,
+    getAdminTrustGovernance,
+    getAdminSustainabilityReport
 } = require('../controllers/impactController');
 
 const { protect, adminOnly } = require('../middleware/auth');
@@ -29,8 +37,16 @@ const volunteerOnly = (req, res, next) => {
 router.use(protect);
 
 router.get('/donor', donorOnly, getDonorImpact);
+router.get('/donor/sustainability', donorOnly, getDonorSustainability);
+router.get('/donor/trust-badge', donorOnly, getDonorTrustBadge);
 router.get('/ngo', ngoOnly, getNgoImpact);
+router.get('/ngo/sustainability', ngoOnly, getNgoSustainability);
+router.get('/ngo/trust-badge', ngoOnly, getNgoTrustBadge);
 router.get('/volunteer', volunteerOnly, getVolunteerImpact);
+router.get('/volunteer/sustainability', volunteerOnly, getVolunteerSustainability);
+router.get('/volunteer/trust-badge', volunteerOnly, getVolunteerTrustBadge);
 router.get('/admin', adminOnly, getAdminImpact);
+router.get('/admin/trust-governance', adminOnly, getAdminTrustGovernance);
+router.get('/admin/sustainability-report', adminOnly, getAdminSustainabilityReport);
 
 module.exports = router;
