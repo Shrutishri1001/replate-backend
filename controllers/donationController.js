@@ -2,6 +2,20 @@ const Donation = require('../models/Donation');
 const User = require('../models/User');
 const { createNotification } = require('./notificationController');
 const { calculateDistance } = require('../utils/distance');
+const geocodeAddress = require('../utils/geocoder');
+
+// Haversine formula to calculate distance between coordinates
+const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    if (!lat1 || !lon1 || !lat2 || !lon2) return Infinity;
+    const R = 6371; // Radius of the Earth in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+};
 
 // @desc    Create new donation
 // @route   POST /api/donations
@@ -13,6 +27,12 @@ exports.createDonation = async (req, res) => {
             ...req.body
         };
 
+        // Geocode address (using pickup address)
+        const coordinates = await geocodeAddress(req.body.pickupAddress, req.body.city, req.body.pincode || '000000');
+        if (coordinates) {
+            donationData.location = coordinates;
+        }
+
         const donation = await Donation.create(donationData);
 
         // Notify top 3 closest NGOs with available capacity
@@ -23,6 +43,11 @@ exports.createDonation = async (req, res) => {
             const donationLat = donation.location?.lat;
             const donationLng = donation.location?.lng;
 
+            
+            const size = donation.estimatedServings || donation.quantity || 0;
+            const donationLat = donation.location?.lat;
+            const donationLng = donation.location?.lng;
+            
             if (donationLat && donationLng) {
                 const matchedNgos = ngos.map(ngo => {
                     const capacity = ngo.dailyCapacity || 0;
@@ -38,6 +63,7 @@ exports.createDonation = async (req, res) => {
 
                 const topNgos = matchedNgos.slice(0, 3);
 
+                
                 for (const match of topNgos) {
                     await createNotification({
                         recipient: match.ngo._id,
@@ -83,7 +109,7 @@ exports.getDonations = async (req, res) => {
         }
 
         const donations = await Donation.find({ donor: req.user._id })
-            .populate('acceptedBy', 'name organization')
+            .populate('acceptedBy', 'name organizationName phone fullName')
             .populate('assignedTo', 'fullName phone')
             .sort('-createdAt');
 

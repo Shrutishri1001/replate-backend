@@ -661,6 +661,10 @@ exports.getAssignmentMapData = async (req, res) => {
             donorLocation: assignment.donation.location,
 
             // ✅ CONSUMER = NGO
+            // DONOR = pickup
+            donorLocation: assignment.donation.location,
+
+            // CONSUMER = NGO
             consumerLocation: consumer?.location || null,
 
             volunteerAddress: assignment.volunteer.address,
@@ -711,14 +715,19 @@ exports.updateAssignmentLocation = async (req, res) => {
 // @route   GET /api/assignments/volunteer-active
 // @access  Private (Volunteer)
 exports.getActiveAssignmentForVolunteer = async (req, res) => {
-    const assignment = await Assignment.findOne({
-        volunteer: req.user._id,
-        status: { $in: ["accepted", "in_transit"] }
-    }).sort({ createdAt: -1 });
+    try {
+        const assignment = await Assignment.findOne({
+            volunteer: req.user._id,
+            status: { $in: ["accepted", "in_transit"] }
+        }).sort({ createdAt: -1 });
 
-    if (!assignment) {
-        return res.status(404).json({ message: "No active assignment" });
+        if (!assignment) {
+            return res.status(404).json({ message: "No active assignment" });
+        }
+
+        res.json(assignment);
+    } catch (error) {
+        console.error('Get active assignment error:', error);
+        res.status(500).json({ message: "Server error", error: error.message });
     }
-
-    res.json(assignment);
 };

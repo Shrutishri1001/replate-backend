@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const { validationResult } = require('express-validator');
+const geocodeAddress = require('../utils/geocoder');
 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -64,6 +65,12 @@ exports.register = async (req, res) => {
         maxWeight: req.body.volunteerProfile.maxWeight,
         availabilitySchedule: req.body.volunteerProfile.availabilitySchedule
       };
+    }
+
+    // Geocode address
+    const coordinates = await geocodeAddress(address, city, pincode);
+    if (coordinates) {
+      userData.location = coordinates;
     }
 
     const user = await User.create(userData);
