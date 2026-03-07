@@ -78,12 +78,19 @@ exports.getMapVolunteers = async (req, res) => {
 exports.getActiveAssignments = async (req, res) => {
     try {
         const assignments = await Assignment.find({
-            status: { $in: ['accepted', 'in_transit'] }
-        })
-            .populate('donation', 'foodName pickupAddress location')
-            .populate('volunteer', 'fullName phone vehicleType')
-            .select('status currentLocation donation volunteer')
-            .sort({ updatedAt: -1 });
+    status: { $in: ['accepted', 'in_transit'] }
+})
+.populate({
+    path: 'donation',
+    select: 'foodName pickupAddress location acceptedBy',
+    populate: {
+        path: 'acceptedBy',
+        select: 'organizationName location address'
+    }
+})
+.populate('volunteer', 'fullName phone vehicleType')
+.select('status currentLocation donation volunteer')
+.sort({ updatedAt: -1 });
 
         const formattedAssignments = assignments.map(assignment => ({
             id: assignment._id,
