@@ -108,7 +108,7 @@ exports.getDonations = async (req, res) => {
 exports.getAvailableDonations = async (req, res) => {
     try {
         const donations = await Donation.find({ status: 'pending' })
-            .populate('donor', 'name organization city location')
+            .populate('donor', 'fullName organizationName email phone address city location')
             .sort('-createdAt');
 
         const ngoCapacity = req.user.dailyCapacity || 0;
@@ -343,7 +343,25 @@ exports.acceptDonation = async (req, res) => {
                 const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
                 const today = days[new Date().getDay()];
 
+                // Fetch active assignments for all these volunteers to determine workload
+                const Assignment = require('../models/Assignment');
+                const activeAssignments = await Assignment.aggregate([
+                    { $match: { status: { $in: ['accepted', 'in_transit', 'assigned'] } } },
+                    { $group: { _id: '$volunteer', count: { $sum: 1 } } }
+                ]);
+
+                const workloadMap = {};
+                activeAssignments.forEach(a => {
+                    workloadMap[a._id.toString()] = a.count;
+                });
+
                 for (const volunteer of volunteers) {
+                    // Check workload
+                    const activeCount = workloadMap[volunteer._id.toString()] || 0;
+
+                    // Skip if volunteer is overloaded (e.g., 3 or more active assignments)
+                    if (activeCount >= 3) continue;
+
                     // Check if volunteer is active at ALL in their schedule
                     const scheduleObj = volunteer.volunteerProfile?.availabilitySchedule || {};
                     const isAnyDayActive = Object.values(scheduleObj).some(day => day.active);
@@ -353,10 +371,16 @@ exports.acceptDonation = async (req, res) => {
                         const dQty = Number(donation.quantity);
                         const vMax = Number(volunteer.volunteerProfile?.maxWeight);
                         if (donation.unit !== 'kg' || isNaN(vMax) || vMax >= dQty) {
+
+                            // Adjust message based on workload
+                            const urgencyMsg = activeCount === 0
+                                ? 'You have no active assignments. '
+                                : `You have ${activeCount} active task(s). `;
+
                             await createNotification({
                                 recipient: volunteer._id,
                                 title: 'New Assignment Available',
-                                message: `A new donation "${donation.foodName}" is ready for pickup in ${donation.city || cityToMatch}.`,
+                                message: `${urgencyMsg}A new donation "${donation.foodName}" is ready for pickup in ${donation.city || cityToMatch}.`,
                                 type: 'new_assignment',
                                 data: { donationId: donation._id }
                             });
