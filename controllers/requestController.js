@@ -120,9 +120,12 @@ exports.getRequests = async (req, res) => {
         const requests = await Request.find({ ngo: req.user._id })
             .populate({
                 path: 'donation',
-                populate: { path: 'assignedTo', select: 'fullName phone' }
+                populate: [
+                    { path: 'assignedTo', select: 'fullName phone' },
+                    { path: 'donor', select: 'fullName organizationName email phone address city' }
+                ]
             })
-            .populate('ngo', 'name email organization')
+            .populate('ngo', 'fullName email organizationName')
             .populate('volunteer', 'fullName phone')
             .sort('-createdAt');
 
