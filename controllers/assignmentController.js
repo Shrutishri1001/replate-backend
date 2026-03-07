@@ -2,6 +2,12 @@ const Assignment = require('../models/Assignment');
 const Donation = require('../models/Donation');
 const User = require('../models/User');
 const { createNotification } = require('./notificationController');
+const { calculateDistance } = require('../utils/distance');
+
+// Max radii (km) for volunteer proximity filtering
+const MAX_VOLUNTEER_TO_PICKUP_KM = 15;  // volunteer → donor (pickup point)
+const MAX_VOLUNTEER_TO_NGO_KM = 20;    // volunteer → NGO (drop-off point)
+
 
 // @desc    Create new assignment (assign donation to volunteer)
 // @route   POST /api/assignments/create
@@ -373,73 +379,124 @@ exports.getAllAssignments = async (req, res) => {
 // @access  Private (Volunteer)
 exports.getAvailableAssignments = async (req, res) => {
     try {
-        const { lat, lng, radius, type } = req.query;
-
-        // Force fetch fresh user with profile
-        const User = require('../models/User');
+        // Force fetch fresh volunteer with full profile & location
         const volunteer = await User.findById(req.user._id);
-        const volunteerCity = volunteer.city;
+        const volunteerCity = (volunteer.city || '').toLowerCase().trim();
+        const vLat = volunteer.location?.lat;
+        const vLng = volunteer.location?.lng;
+        const volunteerMaxWeight = Number(volunteer.volunteerProfile?.maxWeight) || 0;
 
-        // Base query: Accepted donations that are not assigned to a volunteer
-        // Must be accepted by an NGO
+        // Base query: NGO-accepted donations with no volunteer yet
         const query = {
             status: 'accepted',
             assignedTo: null,
             acceptedBy: { $exists: true, $ne: null }
         };
 
-        const assignments = await Donation.find(query)
+        const donations = await Donation.find(query)
             .populate('donor', '-password')
+            .populate('acceptedBy', 'location city organizationName')
             .sort({ createdAt: -1 });
 
-        // Intelligence Filtering: Filter by volunteer's schedule and capacity
+        // Schedule check for today
         const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
         const today = days[new Date().getDay()];
         const schedule = volunteer.volunteerProfile?.availabilitySchedule?.[today];
-
-        // If profile is missing or schedule is missing, we default to whatever the role says
-        // but for safety, if they have NO schedule defined, we might want to show them tasks anyway?
-        // However, user said "fitting", so let's assume schedule exists.
         const isScheduledToday = schedule ? schedule.active : true;
 
-        console.log(`Volunteer ${volunteer.fullName} (ID: ${volunteer._id}) - Schedule today (${today}): ${isScheduledToday ? 'Active' : 'Inactive'}`);
+        const scoredDonations = donations
+            .filter(d => {
+                // 1. Must be scheduled today
+                if (!isScheduledToday) return false;
 
-        const filteredAssignments = assignments.filter(d => {
-            // 1. City Matching (Case-insensitive)
-            const donationCity = (d.city || d.donor?.city || '').toLowerCase().trim();
-            const vCity = (volunteerCity || '').toLowerCase().trim();
+                // 2. Exclude expired donations
+                if (d.expiryDate && d.expiryTime) {
+                    const expiryDateTime = new Date(`${d.expiryDate}T${d.expiryTime}`);
+                    if (new Date() >= expiryDateTime) return false;
+                }
 
-            if (vCity && donationCity && vCity !== donationCity) {
-                return false;
-            }
+                // 3. Weight capacity check (only if kg unit and maxWeight set)
+                const dQty = Number(d.quantity) || 0;
+                if (d.unit === 'kg' && volunteerMaxWeight > 0 && volunteerMaxWeight < dQty) {
+                    return false;
+                }
 
-            // 2. Exclude expired
-            if (d.expiryDate && d.expiryTime) {
-                const expiryDateTime = new Date(`${d.expiryDate}T${d.expiryTime}`);
-                if (new Date() > expiryDateTime) return false;
-            }
+                // 4. Proximity check — GPS first, fall back to city string
+                const dLat = d.location?.lat || d.donor?.location?.lat;
+                const dLng = d.location?.lng || d.donor?.location?.lng;
+                const ngoLat = d.acceptedBy?.location?.lat;
+                const ngoLng = d.acceptedBy?.location?.lng;
 
-            // 3. Check capacity if unit is kg
-            const dQty = Number(d.quantity) || 0;
-            const vMax = Number(volunteer.volunteerProfile?.maxWeight);
+                const hasVolunteerGPS = (vLat != null && vLng != null);
+                const hasDonationGPS = (dLat != null && dLng != null);
+                const hasNgoGPS = (ngoLat != null && ngoLng != null);
 
-            // Only filter if vMax is a positive number. If 0 or NaN, assume no limit for now.
-            if (d.unit === 'kg' && !isNaN(vMax) && vMax > 0) {
-                if (vMax < dQty) return false;
-            }
+                if (hasVolunteerGPS && hasDonationGPS) {
+                    // GPS-based: volunteer must be within MAX_VOLUNTEER_TO_PICKUP_KM of pickup
+                    const distToPickup = calculateDistance(vLat, vLng, dLat, dLng);
+                    if (distToPickup > MAX_VOLUNTEER_TO_PICKUP_KM) return false;
 
-            // 4. Check schedule
-            if (!isScheduledToday) return false;
+                    // GPS-based: volunteer must be within MAX_VOLUNTEER_TO_NGO_KM of NGO (drop-off)
+                    if (hasNgoGPS) {
+                        const distToNgo = calculateDistance(vLat, vLng, ngoLat, ngoLng);
+                        if (distToNgo > MAX_VOLUNTEER_TO_NGO_KM) return false;
+                    }
+                } else {
+                    // Fallback: city string matching
+                    const donationCity = (d.city || d.donor?.city || '').toLowerCase().trim();
+                    const ngoCity = (d.acceptedBy?.city || '').toLowerCase().trim();
+                    if (volunteerCity && donationCity && volunteerCity !== donationCity) return false;
+                }
 
-            return true;
-        });
+                return true;
+            })
+            .map(d => {
+                // ── Suitability Score (0–100) ──────────────────────────────────
+                // Component 1: Distance score (40 pts) — closer pickup = higher score
+                const dLat = d.location?.lat || d.donor?.location?.lat;
+                const dLng = d.location?.lng || d.donor?.location?.lng;
+                const hasGPS = (vLat != null && vLng != null && dLat != null && dLng != null);
+                let distanceScore = 20; // neutral default when no GPS
+                if (hasGPS) {
+                    const dist = calculateDistance(vLat, vLng, dLat, dLng);
+                    // Score: 40 at 0km → 0 at MAX_VOLUNTEER_TO_PICKUP_KM
+                    distanceScore = Math.max(0, 40 * (1 - dist / MAX_VOLUNTEER_TO_PICKUP_KM));
+                }
 
-        res.status(200).json(filteredAssignments);
+                // Component 2: Urgency score (35 pts) — less time remaining = higher urgency
+                let urgencyScore = 0;
+                if (d.expiryDate && d.expiryTime) {
+                    const expiryMs = new Date(`${d.expiryDate}T${d.expiryTime}`) - Date.now();
+                    const twoHoursMs = 2 * 60 * 60 * 1000;
+                    if (expiryMs > 0) {
+                        // Within 2-hour window → urgency ramps to 35; beyond → 0
+                        urgencyScore = Math.min(35, 35 * (1 - Math.min(expiryMs, twoHoursMs) / twoHoursMs));
+                    }
+                }
+
+                // Component 3: Capacity fit bonus (25 pts)
+                const dQty = Number(d.quantity) || 0;
+                const capacityFit = (d.unit !== 'kg' || volunteerMaxWeight <= 0 || volunteerMaxWeight >= dQty) ? 25 : 0;
+
+                const suitabilityScore = Math.round(distanceScore + urgencyScore + capacityFit);
+                const recommended = suitabilityScore >= 60;
+
+                return {
+                    ...d.toObject(),
+                    suitabilityScore,
+                    recommended,
+                    remainingTime: d.getRemainingTime ? d.getRemainingTime() : null
+                };
+            })
+            .sort((a, b) => b.suitabilityScore - a.suitabilityScore); // Best matches first
+
+        res.status(200).json(scoredDonations);
     } catch (error) {
         console.error('Get available assignments error:', error);
         res.status(500).json({ message: 'Server error', error: error.message });
     }
 };
+
 
 // @desc    Volunteer claims an assignment
 // @route   POST /api/assignments/claim
@@ -600,6 +657,10 @@ exports.getAssignmentMapData = async (req, res) => {
 
             volunteerLocation: assignment.currentLocation || null,
 
+            // ✅ DONOR = pickup
+            donorLocation: assignment.donation.location,
+
+            // ✅ CONSUMER = NGO
             // DONOR = pickup
             donorLocation: assignment.donation.location,
 

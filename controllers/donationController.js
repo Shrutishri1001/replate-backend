@@ -1,6 +1,7 @@
 const Donation = require('../models/Donation');
 const User = require('../models/User');
 const { createNotification } = require('./notificationController');
+const { calculateDistance } = require('../utils/distance');
 const geocodeAddress = require('../utils/geocoder');
 
 // Haversine formula to calculate distance between coordinates
@@ -37,6 +38,11 @@ exports.createDonation = async (req, res) => {
         // Notify top 3 closest NGOs with available capacity
         try {
             const ngos = await User.find({ role: 'ngo', status: 'active' });
+
+            const size = donation.estimatedServings || donation.quantity || 0;
+            const donationLat = donation.location?.lat;
+            const donationLng = donation.location?.lng;
+
             
             const size = donation.estimatedServings || donation.quantity || 0;
             const donationLat = donation.location?.lat;
@@ -56,6 +62,7 @@ exports.createDonation = async (req, res) => {
                 }).sort((a, b) => a.distance - b.distance);
 
                 const topNgos = matchedNgos.slice(0, 3);
+
                 
                 for (const match of topNgos) {
                     await createNotification({
