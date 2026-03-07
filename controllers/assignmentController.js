@@ -600,10 +600,10 @@ exports.getAssignmentMapData = async (req, res) => {
 
             volunteerLocation: assignment.currentLocation || null,
 
-            // ✅ DONOR = pickup
+            // DONOR = pickup
             donorLocation: assignment.donation.location,
 
-            // ✅ CONSUMER = NGO
+            // CONSUMER = NGO
             consumerLocation: consumer?.location || null,
 
             volunteerAddress: assignment.volunteer.address,
