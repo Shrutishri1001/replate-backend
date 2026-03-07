@@ -154,7 +154,13 @@ const donationSchema = new mongoose.Schema({
     acceptedAt: Date,
     pickedUpAt: Date,
     deliveredAt: Date,
-    cancelledAt: Date
+    cancelledAt: Date,
+
+    // Expiry alert tracking — prevents duplicate alert notifications
+    expiryAlertSent: {
+        type: Boolean,
+        default: false
+    }
 
 }, {
     timestamps: true

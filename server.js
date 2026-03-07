@@ -43,6 +43,10 @@ if (require.main === module) {
     // Connect to database only when running server
     connectDB();
 
+    // Start expiry alert background job (no external dependency — uses setInterval)
+    const { startExpiryAlertJob } = require('./scripts/expiryAlertJob');
+    startExpiryAlertJob();
+
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => {
         console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);

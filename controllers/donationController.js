@@ -1,19 +1,7 @@
 const Donation = require('../models/Donation');
 const User = require('../models/User');
 const { createNotification } = require('./notificationController');
-
-// Haversine formula to calculate distance between coordinates
-const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    if (!lat1 || !lon1 || !lat2 || !lon2) return Infinity;
-    const R = 6371; // Radius of the Earth in km
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-        Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-};
+const { calculateDistance } = require('../utils/distance');
 
 // @desc    Create new donation
 // @route   POST /api/donations
@@ -30,11 +18,11 @@ exports.createDonation = async (req, res) => {
         // Notify top 3 closest NGOs with available capacity
         try {
             const ngos = await User.find({ role: 'ngo', status: 'active' });
-            
+
             const size = donation.estimatedServings || donation.quantity || 0;
             const donationLat = donation.location?.lat;
             const donationLng = donation.location?.lng;
-            
+
             if (donationLat && donationLng) {
                 const matchedNgos = ngos.map(ngo => {
                     const capacity = ngo.dailyCapacity || 0;
@@ -49,7 +37,7 @@ exports.createDonation = async (req, res) => {
                 }).sort((a, b) => a.distance - b.distance);
 
                 const topNgos = matchedNgos.slice(0, 3);
-                
+
                 for (const match of topNgos) {
                     await createNotification({
                         recipient: match.ngo._id,
