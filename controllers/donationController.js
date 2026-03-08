@@ -44,9 +44,7 @@ exports.createDonation = async (req, res) => {
             const donationLng = donation.location?.lng;
 
             
-            const size = donation.estimatedServings || donation.quantity || 0;
-            const donationLat = donation.location?.lat;
-            const donationLng = donation.location?.lng;
+          
             
             if (donationLat && donationLng) {
                 const matchedNgos = ngos.map(ngo => {
