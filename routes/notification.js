@@ -4,7 +4,9 @@ const {
     getNotifications,
     getUnreadCount,
     markAsRead,
-    markAllAsRead
+    markAllAsRead,
+    deleteNotification,
+    clearAllNotifications
 } = require('../controllers/notificationController');
 const { protect } = require('../middleware/auth');
 
@@ -17,22 +19,10 @@ router.put('/:id/read', markAsRead);
 router.put('/mark-all-read', markAllAsRead);
 router.put('/read-all', markAllAsRead);
 
-// Delete individual notification
-router.delete('/:id', (req, res) => {
-    try {
-        res.json({ message: 'Notification deleted' });
-    } catch (error) {
-        res.status(500).json({ message: 'Error deleting notification', error: error.message });
-    }
-});
+// Clear all notifications (must be before /:id)
+router.delete('/clear-all', clearAllNotifications);
 
-// Clear all notifications
-router.delete('/clear-all', (req, res) => {
-    try {
-        res.json({ message: 'All notifications cleared' });
-    } catch (error) {
-        res.status(500).json({ message: 'Error clearing notifications', error: error.message });
-    }
-});
+// Delete individual notification
+router.delete('/:id', deleteNotification);
 
 module.exports = router;
