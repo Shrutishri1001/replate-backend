@@ -91,24 +91,33 @@ exports.getActiveAssignments = async (req, res) => {
 .populate('volunteer', 'fullName phone vehicleType')
 .select('status currentLocation donation volunteer')
 .sort({ updatedAt: -1 });
+console.log("Active assignments:", assignments);
 
-        const formattedAssignments = assignments.map(assignment => ({
-            id: assignment._id,
-            status: assignment.status,
-            currentLocation: assignment.currentLocation,
-            donation: {
-                id: assignment.donation?._id,
-                foodName: assignment.donation?.foodName,
-                pickupAddress: assignment.donation?.pickupAddress,
-                location: assignment.donation?.location
-            },
-            volunteer: {
-                id: assignment.volunteer?._id,
-                name: assignment.volunteer?.fullName,
-                phone: assignment.volunteer?.phone,
-                vehicleType: assignment.volunteer?.vehicleType
-            }
-        }));
+      const formattedAssignments = assignments.map(assignment => ({
+    id: assignment._id,
+    status: assignment.status,
+    currentLocation: assignment.currentLocation,
+
+    donation: {
+        id: assignment.donation?._id,
+        foodName: assignment.donation?.foodName,
+        pickupAddress: assignment.donation?.pickupAddress,
+        location: assignment.donation?.location,
+
+        acceptedBy: {
+              name: assignment.donation?.acceptedBy?.organizationName,
+  location: assignment.donation?.acceptedBy?.location,
+  address: assignment.donation?.acceptedBy?.address
+        }
+    },
+
+    volunteer: {
+        id: assignment.volunteer?._id,
+        name: assignment.volunteer?.fullName,
+        phone: assignment.volunteer?.phone,
+        vehicleType: assignment.volunteer?.vehicleType
+    }
+}));
 
         res.status(200).json(formattedAssignments);
     } catch (error) {
