@@ -13,7 +13,8 @@ const {
     updateVerificationStatus,
     getAllDonations,
     getAllRequests,
-    getAllAssignments
+    getAllAssignments,
+    getAnalyticsStats
 } = require('../controllers/adminController');
 
 // Dashboard
@@ -32,5 +33,6 @@ router.put('/users/:id/verification', protect, adminOnly, updateVerificationStat
 router.get('/donations', protect, adminOnly, getAllDonations);
 router.get('/requests', protect, adminOnly, getAllRequests);
 router.get('/assignments', protect, adminOnly, getAllAssignments);
+router.get('/analytics', protect, adminOnly, getAnalyticsStats);
 
 module.exports = router;
