@@ -105,9 +105,10 @@ exports.createUser = async (req, res) => {
             return res.status(400).json({ message: 'Email, password, full name, and role are required' });
         }
 
-        // Admin can only create other admin users
-        if (role !== 'admin') {
-            return res.status(403).json({ message: 'Admin can only create other admin users' });
+        // Admin can create any role
+        const validRoles = ['donor', 'ngo', 'volunteer', 'admin'];
+        if (!validRoles.includes(role)) {
+            return res.status(400).json({ message: 'Invalid role specified' });
         }
 
         const existingUser = await User.findOne({ email });
@@ -121,13 +122,14 @@ exports.createUser = async (req, res) => {
             verificationStatus: 'approved'
         };
 
-        // Optional fields
+        // Common optional fields
         if (phone) userData.phone = phone;
         if (address) userData.address = address;
         if (city) userData.city = city;
         if (state) userData.state = state;
         if (pincode) userData.pincode = pincode;
 
+        // Role-specific fields
         if (role === 'donor' || role === 'ngo') {
             if (organizationName) userData.organizationName = organizationName;
             if (organizationType) userData.organizationType = organizationType;
