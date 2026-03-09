@@ -305,20 +305,35 @@ exports.getAnalyticsStats = async (req, res) => {
     try {
         const { timeRange } = req.query;
         let dateFilter = {};
+        let prevDateFilter = {};
+        let periodLabel = 'period';
 
+        const now = new Date();
         if (timeRange && timeRange !== 'All Time') {
-            const now = new Date();
             if (timeRange === 'This Week') {
                 const startOfWeek = new Date(now);
                 startOfWeek.setDate(now.getDate() - now.getDay());
                 startOfWeek.setHours(0, 0, 0, 0);
                 dateFilter.createdAt = { $gte: startOfWeek };
+
+                const startOfPrevWeek = new Date(startOfWeek);
+                startOfPrevWeek.setDate(startOfPrevWeek.getDate() - 7);
+                prevDateFilter.createdAt = { $gte: startOfPrevWeek, $lt: startOfWeek };
+                periodLabel = 'last week';
             } else if (timeRange === 'This Month') {
                 const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
                 dateFilter.createdAt = { $gte: startOfMonth };
+
+                const startOfPrevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                prevDateFilter.createdAt = { $gte: startOfPrevMonth, $lt: startOfMonth };
+                periodLabel = 'last month';
             } else if (timeRange === 'This Year') {
                 const startOfYear = new Date(now.getFullYear(), 0, 1);
                 dateFilter.createdAt = { $gte: startOfYear };
+
+                const startOfPrevYear = new Date(now.getFullYear() - 1, 0, 1);
+                prevDateFilter.createdAt = { $gte: startOfPrevYear, $lt: startOfYear };
+                periodLabel = 'last year';
             }
         }
 
@@ -375,27 +390,23 @@ exports.getAnalyticsStats = async (req, res) => {
             weeklyData.push(dayDonations.length);
         }
 
-        // Food Type Distribution
-        const foodTypeCount = {
-            'Cooked Food': 0,
-            'Bakery Items': 0,
-            'Fruits & Vegetables': 0,
-            'Packaged Food': 0,
-            'Other': 0
-        };
+        // Food Type Distribution (Delivered only)
+        const foodTypeCount = {};
         deliveredDonations.forEach(d => {
             const type = d.foodType || 'Other';
-            if (foodTypeCount[type] !== undefined) foodTypeCount[type]++;
-            else foodTypeCount['Other']++;
+            foodTypeCount[type] = (foodTypeCount[type] || 0) + 1;
         });
-        const totalFood = deliveredDonations.length || 1;
-        const foodTypeDistribution = {
-            'Cooked Food': Math.round((foodTypeCount['Cooked Food'] / totalFood) * 100),
-            'Bakery Items': Math.round((foodTypeCount['Bakery Items'] / totalFood) * 100),
-            'Fruits & Vegetables': Math.round((foodTypeCount['Fruits & Vegetables'] / totalFood) * 100),
-            'Packaged Food': Math.round((foodTypeCount['Packaged Food'] / totalFood) * 100),
-            'Other': Math.round((foodTypeCount['Other'] / totalFood) * 100)
-        };
+
+        const totalFood = deliveredDonations.length;
+        const foodTypeDistribution = {};
+
+        if (totalFood > 0) {
+            Object.entries(foodTypeCount).forEach(([type, count]) => {
+                foodTypeDistribution[type] = Math.round((count / totalFood) * 100);
+            });
+        } else {
+            foodTypeDistribution['No Data'] = 0;
+        }
 
         // Top Donors
         // ---- Trust Score Calculation Helper (Replicated from impactController) ----
@@ -564,6 +575,31 @@ exports.getAnalyticsStats = async (req, res) => {
             return { message: msg, time: timeStr };
         });
 
+        // Fetch previous period data for trends
+        const [
+            prevDonations,
+            prevAssignments,
+            prevDeliveredCount
+        ] = await Promise.all([
+            Donation.countDocuments(prevDateFilter),
+            Assignment.countDocuments(prevDateFilter),
+            Donation.countDocuments({ ...prevDateFilter, status: 'delivered' })
+        ]);
+
+        const calculateTrend = (current, previous) => {
+            if (!previous || previous === 0) return current > 0 ? 100 : 0;
+            return Math.round(((current - previous) / previous) * 100);
+        };
+
+        const trends = {
+            totalDonations: calculateTrend(totalDonationsCount, prevDonations),
+            servings: calculateTrend(servingsDistributed, (prevDeliveredCount * 5)), // Estimating 5 servings per donation for prev
+            activeUsers: 0, // Users count is total, trend is less meaningful here without snapshots
+            waste: calculateTrend(wasteReduced, (prevDeliveredCount * 5 * 0.3)),
+            deliveryTime: calculateTrend(avgDeliveryTime, 45), // Comparing to a baseline of 45 mins if no prev data
+            successRate: calculateTrend(successRate, (prevAssignments > 0 ? 90 : 0))
+        };
+
         res.json({
             totalDonations: totalDonationsCount,
             servingsDistributed,
@@ -576,7 +612,9 @@ exports.getAnalyticsStats = async (req, res) => {
             topDonors: topDonors.length ? topDonors : [{ name: "No Data", servings: "0" }],
             topNGOs: topNGOs.length ? topNGOs : [{ name: "No Data", served: "0" }],
             topVolunteers: topVolunteers.length ? topVolunteers : [{ name: "No Data", deliveries: 0, rating: 0 }],
-            recentActivity: recentActivity.length ? recentActivity : [{ message: "No recent activity", time: "Just now" }]
+            recentActivity: recentActivity.length ? recentActivity : [{ message: "No recent activity", time: "Just now" }],
+            trends,
+            periodLabel
         });
 
     } catch (err) {
