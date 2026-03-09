@@ -4,7 +4,7 @@ const express = require('express');
 const cors = require('cors');
 
 const connectDB = require('./config/db');
-const PORT = process.env.PORT ?? 5000;
+const PORT = process.env.PORT || 5000;
 
 // Load env vars
 //dotenv.config();
@@ -19,8 +19,8 @@ const app = express();
 //app.use(cors());
 app.use(cors({
   origin: [
-    "http://localhost:5173", 
-    "https://replate-frontend.onrender.com"
+    "http://localhost:5173",
+    "https://replate-frontend-3m6i.onrender.com"
   ],
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
   credentials: true
@@ -42,28 +42,28 @@ app.use('/api/impact', require('./routes/impactRoutes'));
 
 // Basic route
 app.get('/', (req, res) => {
-    res.json({ message: 'FoodShare API is running' });
+  res.json({ message: 'FoodShare API is running' });
 });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).json({ message: 'Something went wrong!', error: err.message });
+  console.error(err.stack);
+  res.status(500).json({ message: 'Something went wrong!', error: err.message });
 });
 
 // Only listen if run directly
 if (require.main === module) {
-    // Connect to database only when running server
-    connectDB();
+  // Connect to database only when running server
+  connectDB();
 
-    // Start expiry alert background job (no external dependency — uses setInterval)
-    const { startExpiryAlertJob } = require('./scripts/expiryAlertJob');
-    startExpiryAlertJob();
+  // Start expiry alert background job (no external dependency — uses setInterval)
+  const { startExpiryAlertJob } = require('./scripts/expiryAlertJob');
+  startExpiryAlertJob();
 
-    const PORT = process.env.PORT || 5000;
-    app.listen(PORT, () => {
-        console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
-    });
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => {
+    console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+  });
 }
 
 module.exports = app;
