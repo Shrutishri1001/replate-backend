@@ -1,7 +1,7 @@
 const Donation = require('../models/Donation');
 const User = require('../models/User');
 const { createNotification } = require('./notificationController');
-const { calculateDistance } = require('../utils/distance');
+
 const geocodeAddress = require('../utils/geocoder');
 
 // Haversine formula to calculate distance between coordinates

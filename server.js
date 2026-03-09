@@ -1,10 +1,13 @@
+require('dotenv').config();
+//const dotenv = require('dotenv');
 const express = require('express');
 const cors = require('cors');
-const dotenv = require('dotenv');
+
 const connectDB = require('./config/db');
 const PORT = process.env.PORT ?? 5000;
+
 // Load env vars
-dotenv.config();
+//dotenv.config();
 
 // Connect to database
 // Connect to database (now handled conditionally)
