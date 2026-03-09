@@ -20,6 +20,7 @@ const app = express();
 app.use(cors({
   origin: [
     "http://localhost:5173",
+    "https://replate-frontend.onrender.com",
     "https://replate-frontend-3m6i.onrender.com"
   ],
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
