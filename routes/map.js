@@ -4,7 +4,9 @@ const {
     getMapDonations,
     getMapVolunteers,
     getActiveAssignments,
-    getAllMapData
+    getAllMapData,
+    getDonorMap,
+    getNgoMap
 } = require('../controllers/mapController');
 const { protect } = require('../middleware/auth');
 
@@ -14,13 +16,8 @@ router.use(protect);
 // Map data routes
 router.get('/donations', getMapDonations);
 router.get('/volunteers', getMapVolunteers);
-router.get('/ngos', (req, res) => {
-    try {
-        res.json([]);
-    } catch (error) {
-        res.status(500).json({ message: 'Error fetching NGO locations', error: error.message });
-    }
-});
+router.get('/donors', getDonorMap);
+router.get('/ngos', getNgoMap);
 router.get('/assignments/active', getActiveAssignments);
 router.get('/active-assignments', getActiveAssignments);
 
@@ -28,15 +25,15 @@ router.get('/active-assignments', getActiveAssignments);
 router.post('/calculate-route', (req, res) => {
     try {
         const { pickupLocation, deliveryLocation } = req.body;
-        
-        if (!pickupLocation || !deliveryLocation || 
+
+        if (!pickupLocation || !deliveryLocation ||
             typeof pickupLocation.lat !== 'number' || typeof pickupLocation.lng !== 'number' ||
             typeof deliveryLocation.lat !== 'number' || typeof deliveryLocation.lng !== 'number') {
             return res.status(400).json({ message: 'Invalid location coordinates' });
         }
 
         // Return mock route data
-        res.json({ 
+        res.json({
             distance: 5.2,
             duration: '12 mins',
             route: [pickupLocation, deliveryLocation]
@@ -59,7 +56,7 @@ router.get('/location-search', (req, res) => {
 router.get('/nearby-donations', (req, res) => {
     try {
         const { lat, lng, radius } = req.query;
-        
+
         if (!lat || !lng || !radius) {
             return res.status(400).json({ message: 'lat, lng, and radius parameters are required' });
         }

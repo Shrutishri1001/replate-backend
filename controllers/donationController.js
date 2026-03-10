@@ -4,7 +4,7 @@ const { createNotification } = require('./notificationController');
 
 const geocodeAddress = require('../utils/geocoder');
 
-// Haversine formula to calculate distance between coordinates (Removed duplicate, using utils/distance.js)
+
 
 // @desc    Create new donation
 // @route   POST /api/donations

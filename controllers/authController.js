@@ -124,6 +124,7 @@ exports.login = async (req, res) => {
         city: user.city,
         state: user.state,
         pincode: user.pincode,
+        location: user.location,
         status: user.status,
         verificationStatus: user.verificationStatus,
         token: generateToken(user._id),
