@@ -3,6 +3,9 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const connectDB = require('./config/db');
 const PORT = process.env.PORT ?? 5000;
+const mapRoutes = require("./routes/mapRoutes");
+
+
 // Load env vars
 dotenv.config();
 
@@ -27,6 +30,7 @@ app.use('/api/map', require('./routes/map'));
 app.use('/api/notifications', require('./routes/notification'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/impact', require('./routes/impactRoutes'));
+app.use("/api/map", mapRoutes);
 
 // Basic route
 app.get('/', (req, res) => {
