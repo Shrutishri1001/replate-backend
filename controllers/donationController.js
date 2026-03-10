@@ -41,7 +41,7 @@ exports.createDonation = async (req, res) => {
                     return { ngo, distance, capacity };
                 }).filter(match => {
                     // Filter: within 50km radius and enough capacity for the donation size
-                    return match.distance <= 50 && size <= match.capacity;
+                    return match.distance <= 30&& size <= match.capacity;
                 }).sort((a, b) => a.distance - b.distance);
 
                 const topNgos = matchedNgos.slice(0, 3);
