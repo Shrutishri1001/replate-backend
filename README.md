@@ -32,16 +32,32 @@ graph TD
 *   **Testing**: Jest, Supertest
 
 ### 4. Repository Structure
-The backend architecture is modular and logically divided:
+The Replate Backend follows a clean separation of concerns using the Controller-Service-Model pattern.
 
-| Directory | Purpose |
-| :--- | :--- |
-| `controllers/` | Request/Response handling and core business logic. |
-| `models/` | Data schemas and Mongoose database models. |
-| `routes/` | API endpoint definitions and role-based protection. |
-| `middleware/` | Authentication guards and validation layers. |
-| `scripts/` | Maintenance tasks (e.g., expiry alerts, data cleanup). |
-| `config/` | Database and infrastructure configuration. |
+#### 📂 Directory Tree
+```text
+replate-backend/
+├── config/                 # Infrastructure setup (Database connection)
+├── controllers/            # Business logic handlers for all API modules
+│   ├── adminController.js     # User management & platform-wide stats
+│   ├── donationController.js  # Donation lifecycles (pending -> delivered)
+│   └── impactController.js   # Sustainability score calculations
+├── middleware/             # Request interceptors (Auth protection, Admin-only)
+├── models/                 # Mongoose Data Schemas (User, Donation, Assignment)
+├── routes/                 # Express REST endpoint definitions
+├── scripts/                # Maintenance tools (Inventory cleanup, Cron jobs)
+├── utils/                  # Helper utilities (Coordinate distance calculators)
+├── server.js               # Application entry point & configuration
+└── Replate_API_Collection.json # Postman integration file
+```
+
+#### 🏗️ Logic & Data Modules
+| Module | Components Involved | Responsibility |
+| :--- | :--- | :--- |
+| **Authentication** | `authController`, `User` model, `auth` middleware | Registration, Login, and JWT Token validation. |
+| **Logistics** | `assignmentController`, `requestController` | Managing volunteer-food-NGO connections and routing. |
+| **Impact** | `impactController`, `Donation` model | Real-time tracking of CO2 reduction and meals saved. |
+| **Notifications** | `notificationController` | Real-time alerts for donors and NGOs. |
 
 ### 5. CI/CD Pipeline
 *   **Quality Assurance**: Automated testing using **Jest** and **Supertest** ensures that every API endpoint returns expected results before deployment.
