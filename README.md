@@ -4,6 +4,20 @@ This repository contains the backend API for **Replate**, handling data persiste
 
 ---
 
+## 📑 Table of Contents
+1. [Introduction](#1-introduction)
+2. [System Architecture](#2-system-architecture)
+3. [Technology Stack](#3-technology-stack)
+4. [Repository Structure](#4-repository-structure)
+5. [CI/CD Pipeline](#5-ci-cd-pipeline)
+6. [Local Development Setup](#6-local-development-setup)
+7. [Deployment Process](#7-deployment-process)
+8. [Monitoring & Logging](#8-monitoring--logging)
+9. [Security Considerations](#9-security-considerations)
+10. [License](#license)
+
+---
+
 ## 🛠️ DevOps & Developer Documentation (DevDocs)
 
 ### 1. Introduction
