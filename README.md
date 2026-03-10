@@ -1,156 +1,92 @@
-# Replate Backend Developer Documentation
+# Replate - Food Redistribution Platform (Backend)
 
-## Table of Contents
+This repository contains the backend API for **Replate**, handling data persistence, authentication, and core business logic for the food redistribution ecosystem.
 
-1. [Introduction](#introduction)
-2. [About the Project](#about-the-project)
-3. [Installation](#installation)
-4. [Usage](#usage)
-5. [Running Tests](#running-tests)
-6. [Compatibility](#compatibility)
-7. [Project Structure Overview](#project-structure-overview)
-8. [Security Design Notes](#security-design-notes)
-9. [Limitations](#limitations)
-10. [Project Support](#project-support)
-11. [License](#license)
+---
 
-## Introduction
+## 🛠️ DevOps & Developer Documentation (DevDocs)
 
-Welcome to the backend documentation for **FoodShare/Replate**. This repository contains the server-side API application built with Node.js, Express.js, and MongoDB. It handles data persistence, authentication, and business logic for connecting food donors, NGOs, and volunteers.
+### 1. Introduction
+The **Replate Backend** is a RESTful API service built with Node.js and Express. It acts as the central hub connecting donors, NGOs, and volunteers. It manages user accounts, donation tracking, logistics assignments, and impact analytics, ensuring a reliable and secure experience for all stakeholders.
 
-## About the Project
+### 2. System Architecture
+The backend follows the **Model-View-Controller (MVC)** pattern to ensure scalability and ease of testing. It utilizes MongoDB for flexible, document-based data storage.
 
- The backend architecture uses a **Model-Controller-Service** pattern to ensure separation of concerns and maintainability.
-
-### Architecture Diagram
 ```mermaid
 graph TD
-    Client[Frontend Client] -->|HTTP Request| Route[Express Routes]
-    Route -->|Dispatch| Controller[Controller Logic]
-    Controller -->|Validate/Process| Model[Mongoose Models]
-    Model -->|Query/Save| DB[(MongoDB Database)]
-    Controller -->|Response| Client
+    Client[Frontend Client / Postman] -->|HTTP REST| API[Express.js API Layer]
+    API -->|Routing| Controllers[Controller Logic]
+    Controllers -->|Business Logic| Models[Mongoose Models]
+    Models -->|Data Operations| DB[(MongoDB Atlas)]
 ```
 
-### Technology Stack
-*   **Runtime**: Node.js (v16+)
+*   **Data Layer**: Mongoose ODM for schema definition and validation.
+*   **Auth Layer**: Stateless JWT-based authentication.
+
+### 3. Technology Stack
+*   **Runtime**: Node.js
 *   **Framework**: Express.js
-*   **Database**: MongoDB (Mongoose ODM)
-*   **Authentication**: JWT (JSON Web Tokens)
-*   **Security**: `bcryptjs` (Hashing), `cors`, `helmet` (suggested)
+*   **Database**: MongoDB (Mongoose)
+*   **Security**: bcryptjs (Hashing), JSON Web Token (JWT)
+*   **Middleware**: CORS, Express-Validator
 *   **Testing**: Jest, Supertest
 
-## Installation
+### 4. Repository Structure
+The backend architecture is modular and logically divided:
 
-### Prerequisites
-*   [Node.js](https://nodejs.org/) installed
-*   [MongoDB](https://www.mongodb.com/) installed and running locally OR a MongoDB Atlas connection string.
-
-### Steps
-1.  **Clone the Repository**
-    ```bash
-    git clone <repository-url>
-    cd replate-backend
-    ```
-
-2.  **Install Dependencies**
-    ```bash
-    npm install
-    ```
-
-3.  **Environment Configuration**
-    Create a `.env` file in the root directory:
-    ```env
-    # Server Configuration
-    PORT=5001
-    NODE_ENV=development
-
-    # Database Connection
-    MONGODB_URI=mongodb://127.0.0.1:27017/foodshare
-
-    # Security
-    JWT_SECRET=your_super_secret_key_change_in_production
-    JWT_EXPIRE=30d
-    ```
-
-## Usage
-
-### Running the Application
-
-*   **Development Mode** (with hot-reloading):
-    ```bash
-    npm run dev
-    ```
-    *Server starts on port 5001 by default.*
-
-*   **Production Mode**:
-    ```bash
-    npm start
-    ```
-
-### API Endpoints Overview
-A detailed Postman collection is available in `Replate_API_Collection.postman_collection.json`.
-
-*   **Authentication**: `/api/auth` (Register, Login)
-*   **User Management**: `/api/users` (Profile management)
-*   **Donations**: `/api/donations` (Create, List, View History)
-*   **Requests**: `/api/requests` (Manage food requests)
-*   **Assignments**: `/api/assignments` (Volunteer pickups)
-
-## Running Tests
-
-We use a combination of automated testing and manual API testing.
-
-### Automated Tests (Jest)
-Located in `test/` directory.
-
-*   **Run all tests**:
-    ```bash
-    npm test
-    ```
-*   **Watch mode**:
-    ```bash
-    npm test -- --watch
-    ```
-
-### API Testing (Postman)
-Import `Replate_API_Collection.postman_collection.json` into Postman to test endpoints manually against `localhost:5001`.
-
-## Compatibility
-
-*   **Node.js**: v14.x, v16.x, v18.x recommended.
-*   **MongoDB**: v4.4 or higher.
-*   **OS**: Cross-platform (Windows, macOS, Linux).
-
-## Project Structure Overview
-
-| Directory | Description |
+| Directory | Purpose |
 | :--- | :--- |
-| `config/` | Database connection logic (`db.js`). |
-| `controllers/` | Request handling logic (e.g., `authController.js`). |
-| `middleware/` | Custom middleware (Auth `auth.js`, Validation). |
-| `models/` | Mongoose schemas (`User.js`, `Donation.js`). |
-| `routes/` | API route definitions used by Express. |
-| `scripts/` | Utility scripts (e.g., seeding data). |
-| `test/` | Automated test suites. |
-| `server.js` | Application entry point. |
+| `controllers/` | Request/Response handling and core business logic. |
+| `models/` | Data schemas and Mongoose database models. |
+| `routes/` | API endpoint definitions and role-based protection. |
+| `middleware/` | Authentication guards and validation layers. |
+| `scripts/` | Maintenance tasks (e.g., expiry alerts, data cleanup). |
+| `config/` | Database and infrastructure configuration. |
 
-## Security Design Notes
+### 5. CI/CD Pipeline
+*   **Quality Assurance**: Automated testing using **Jest** and **Supertest** ensures that every API endpoint returns expected results before deployment.
+*   **Automated Deployment**:
+    1. Developers push code to the `main` branch.
+    2. **Render** (Cloud Platform) detects the push via Webhooks.
+    3. The build process installs dependencies and starts the server.
+    4. Health checks verify the application is running before routing production traffic.
 
-*   **Password Hashing**: User passwords are encrypted using `bcryptjs` before storage.
-*   **JWT Auth**: Stateless authentication using JSON Web Tokens.
-*   **Input Validation**: Request bodies are validated using `express-validator` to prevent malformed data.
-*   **Protected Routes**: Middleware ensures only authorized users can access sensitive endpoints.
+### 6. Local Development Setup
+To run the API server locally:
 
-## Limitations
+1. **Prerequisites**: Install [Node.js](https://nodejs.org/) and have access to a [MongoDB](https://www.mongodb.com/) instance.
+2. **Installation**:
+   ```bash
+   npm install
+   ```
+3. **Environment**: Configure `.env` with the following:
+   ```env
+   PORT=5000
+   MONGODB_URI=your_mongodb_connection_string
+   JWT_SECRET=your_secret_key
+   ```
+4. **Execution**:
+   - `npm run dev`: Starts the server with hot-reloading (via nodemon).
+   - `npm start`: Standard production startup.
 
-*   **Rate Limiting**: Not currently implemented; recommended for production to prevent abuse.
-*   **Session Management**: Purely stateless via JWT; no server-side token revocation list (blacklisting) currently active.
+### 7. Deployment Process
+The system is optimized for cloud deployment (e.g., Render, AWS, or Heroku):
+1. **Branch Management**: All production-ready code is merged into the `main` branch.
+2. **Environment Variables**: Confidential keys (DB URI, JWT secret) are injected via the hosting platform's environment manager.
+3. **Build & Release**: The platform executes `npm install` followed by `npm start`, with automated rollback capabilities if deployment fails.
 
-## Project Support
+### 8. Monitoring & Logging
+*   **Platform Dashboard**: Real-time traffic monitoring and CPU/Memory usage via the **Render** dashboard.
+*   **Database Insights**: Query performance and storage limits tracked through **MongoDB Atlas**.
+*   **Application Logs**: Detailed runtime logs captured for debugging and traffic analysis.
 
-For issues, feature requests, or contributions, please open an issue in the repository.
+### 9. Security Considerations
+*   **Encryption**: All user passwords are irreversibly hashed using `bcryptjs` before storage.
+*   **Stateless Security**: JWT authentication ensures that no session data is stored on the server, enhancing scalability and security.
+*   **Input Sanitization**: Use of `express-validator` to prevent SQL/NoSQL injection and malformed data entries.
+*   **CORS**: Restricted access to prevent unauthorized domains from interacting with the API.
+
+---
 
 ## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
+Licensed under the ISC License.
