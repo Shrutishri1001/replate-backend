@@ -1,7 +1,7 @@
 const Donation = require('../models/Donation');
 const User = require('../models/User');
 const { createNotification } = require('./notificationController');
-const { calculateDistance } = require('../utils/distance');
+
 const geocodeAddress = require('../utils/geocoder');
 
 
@@ -31,10 +31,6 @@ exports.createDonation = async (req, res) => {
             const size = donation.estimatedServings || donation.quantity || 0;
             const donationLat = donation.location?.lat;
             const donationLng = donation.location?.lng;
-
-            
-            
-            
             if (donationLat && donationLng) {
                 const matchedNgos = ngos.map(ngo => {
                     const capacity = ngo.dailyCapacity || 0;
@@ -44,13 +40,13 @@ exports.createDonation = async (req, res) => {
                     }
                     return { ngo, distance, capacity };
                 }).filter(match => {
-                    // Filter: within 10km radius and enough capacity for the donation size
-                    return match.distance <= 10 && size <= match.capacity;
+                    // Filter: within 50km radius and enough capacity for the donation size
+                    return match.distance <= 50 && size <= match.capacity;
                 }).sort((a, b) => a.distance - b.distance);
 
                 const topNgos = matchedNgos.slice(0, 3);
 
-                
+
                 for (const match of topNgos) {
                     await createNotification({
                         recipient: match.ngo._id,
@@ -143,7 +139,7 @@ exports.getAvailableDonations = async (req, res) => {
 
             if (ngoLat && ngoLng && dLat && dLng) {
                 const distance = calculateDistance(ngoLat, ngoLng, dLat, dLng);
-                if (distance > 10) return false;
+                if (distance > 50) return false;
             }
 
             return true;

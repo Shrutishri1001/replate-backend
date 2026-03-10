@@ -162,3 +162,28 @@ exports.getMe = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
+// @desc    Debug database status
+// @route   GET /api/auth/debug
+// @access  Public
+exports.getDebugStatus = async (req, res) => {
+  try {
+    const mongoose = require('mongoose');
+    const User = require('../models/User');
+    const Donation = require('../models/Donation');
+
+    const stats = {
+      database: mongoose.connection.name,
+      totalUsers: await User.countDocuments(),
+      totalDonations: await Donation.countDocuments(),
+      statusCounts: await Donation.aggregate([
+        { $group: { _id: '$status', count: { $sum: 1 } } }
+      ]),
+      env: process.env.NODE_ENV,
+      uri_masked: process.env.MONGODB_URI ? process.env.MONGODB_URI.substring(0, 15) + '...' : 'undefined'
+    };
+
+    res.status(200).json(stats);
+  } catch (error) {
+    res.status(500).json({ message: 'Debug failed', error: error.message });
+  }
+};

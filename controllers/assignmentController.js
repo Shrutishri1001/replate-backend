@@ -5,8 +5,8 @@ const { createNotification } = require('./notificationController');
 const { calculateDistance } = require('../utils/distance');
 
 // Max radii (km) for volunteer proximity filtering
-const MAX_VOLUNTEER_TO_PICKUP_KM = 15;  // volunteer → donor (pickup point)
-const MAX_VOLUNTEER_TO_NGO_KM = 20;    // volunteer → NGO (drop-off point)
+const MAX_VOLUNTEER_TO_PICKUP_KM = 50;  // volunteer → donor (pickup point)
+const MAX_VOLUNTEER_TO_NGO_KM = 50;    // volunteer → NGO (drop-off point)
 
 
 // @desc    Create new assignment (assign donation to volunteer)
@@ -452,43 +452,48 @@ exports.getAvailableAssignments = async (req, res) => {
             })
             .map(d => {
                 // ── Suitability Score (0–100) ──────────────────────────────────
-                // Component 1: Distance score (40 pts) — closer pickup = higher score
+                // Component 1: Distance score (30 pts) — closer pickup = higher score
                 const dLat = d.location?.lat || d.donor?.location?.lat;
                 const dLng = d.location?.lng || d.donor?.location?.lng;
                 const hasGPS = (vLat != null && vLng != null && dLat != null && dLng != null);
-                let distanceScore = 20; // neutral default when no GPS
+                let distanceScore = 15; // neutral default when no GPS
                 if (hasGPS) {
                     const dist = calculateDistance(vLat, vLng, dLat, dLng);
-                    // Score: 40 at 0km → 0 at MAX_VOLUNTEER_TO_PICKUP_KM
-                    distanceScore = Math.max(0, 40 * (1 - dist / MAX_VOLUNTEER_TO_PICKUP_KM));
+                    // Score: 30 at 0km → 0 at MAX_VOLUNTEER_TO_PICKUP_KM
+                    distanceScore = Math.max(0, 30 * (1 - dist / MAX_VOLUNTEER_TO_PICKUP_KM));
                 }
 
-                // Component 2: Urgency score (35 pts) — less time remaining = higher urgency
+                // Component 2: Urgency score (50 pts) — less time remaining = higher urgency
                 let urgencyScore = 0;
                 if (d.expiryDate && d.expiryTime) {
                     const expiryMs = new Date(`${d.expiryDate}T${d.expiryTime}`) - Date.now();
-                    const twoHoursMs = 2 * 60 * 60 * 1000;
+                    const twelveHoursMs = 12 * 60 * 60 * 1000;
                     if (expiryMs > 0) {
-                        // Within 2-hour window → urgency ramps to 35; beyond → 0
-                        urgencyScore = Math.min(35, 35 * (1 - Math.min(expiryMs, twoHoursMs) / twoHoursMs));
+                        // Within 12-hour window → urgency ramps to 50; beyond → 0
+                        urgencyScore = Math.min(50, 50 * (1 - Math.min(expiryMs, twelveHoursMs) / twelveHoursMs));
                     }
                 }
 
-                // Component 3: Capacity fit bonus (25 pts)
+                // Component 3: Capacity fit bonus (20 pts)
                 const dQty = Number(d.quantity) || 0;
-                const capacityFit = (d.unit !== 'kg' || volunteerMaxWeight <= 0 || volunteerMaxWeight >= dQty) ? 25 : 0;
+                const capacityFit = (d.unit !== 'kg' || volunteerMaxWeight <= 0 || volunteerMaxWeight >= dQty) ? 20 : 0;
 
                 const suitabilityScore = Math.round(distanceScore + urgencyScore + capacityFit);
-                const recommended = suitabilityScore >= 60;
 
                 return {
                     ...d.toObject(),
                     suitabilityScore,
-                    recommended,
                     remainingTime: d.getRemainingTime ? d.getRemainingTime() : null
                 };
             })
-            .sort((a, b) => b.suitabilityScore - a.suitabilityScore); // Best matches first
+            .sort((a, b) => b.suitabilityScore - a.suitabilityScore) // Best matches first
+            .map((d, index) => {
+                // Label only the single best match as recommended
+                return {
+                    ...d,
+                    recommended: index === 0 && d.suitabilityScore >= 30
+                };
+            });
 
         res.status(200).json(scoredDonations);
     } catch (error) {
@@ -606,7 +611,7 @@ exports.claimAssignment = async (req, res) => {
 exports.updateVolunteerProfile = async (req, res) => {
     try {
         const userId = req.user.id;
-        const { isAvailable, vehicleType, maxWeight, serviceRadius, preferredAreas, availabilitySchedule } = req.body;
+        const { isAvailable, vehicleType, maxWeight, serviceRadius, availabilitySchedule } = req.body;
 
         const user = await User.findById(userId);
         if (!user) {
@@ -615,13 +620,12 @@ exports.updateVolunteerProfile = async (req, res) => {
 
         if (isAvailable !== undefined) user.isAvailable = isAvailable;
 
-        if (vehicleType || maxWeight !== undefined || serviceRadius || preferredAreas || availabilitySchedule) {
+        if (vehicleType || maxWeight !== undefined || serviceRadius || availabilitySchedule) {
             if (!user.volunteerProfile) user.volunteerProfile = {};
 
             if (vehicleType) user.volunteerProfile.vehicleType = vehicleType;
             if (maxWeight !== undefined) user.volunteerProfile.maxWeight = maxWeight;
             if (serviceRadius) user.volunteerProfile.serviceRadius = serviceRadius;
-            if (preferredAreas) user.volunteerProfile.preferredAreas = preferredAreas;
             if (availabilitySchedule) user.volunteerProfile.availabilitySchedule = availabilitySchedule;
         }
 

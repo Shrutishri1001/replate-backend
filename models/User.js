@@ -117,9 +117,6 @@ const userSchema = new mongoose.Schema({
             type: Number,
             default: 5
         },
-        preferredAreas: [{
-            type: String
-        }],
         availabilitySchedule: {
             mon: { active: { type: Boolean, default: true }, slots: [{ start: String, end: String }] },
             tue: { active: { type: Boolean, default: true }, slots: [{ start: String, end: String }] },
