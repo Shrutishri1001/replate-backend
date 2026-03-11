@@ -16,7 +16,7 @@ const notificationSchema = new mongoose.Schema({
     },
     type: {
         type: String,
-        enum: ['new_assignment', 'assignment_update', 'status_update', 'general', 'request_accepted'],
+        enum: ['new_assignment', 'assignment_update', 'status_update', 'general', 'request_accepted', 'food_expired'],
         default: 'general'
     },
     data: {

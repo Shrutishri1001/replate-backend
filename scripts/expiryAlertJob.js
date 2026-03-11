@@ -1,11 +1,12 @@
 /**
  * Expiry Alert Job — runs on a setInterval, no external dependencies.
  *
- * Every 30 minutes it:
  *  1. Finds pending donations expiring within the next 2 hours that haven't
  *     had an expiry alert sent yet.
  *  2. Notifies matched NGOs (GPS ≤ 10km + capacity) with an urgency alert.
  *  3. Notifies the donor if the food has still not been accepted.
+ *  4. Detects donations that have ALREADY expired. Marks them as 'expired'
+ *     and notifies Donor, NGO (if accepted), and Volunteer (if assigned).
  */
 
 const Donation = require('../models/Donation');
@@ -22,19 +23,67 @@ const runExpiryAlerts = async () => {
         const now = new Date();
         const alertCutoff = new Date(now.getTime() + ALERT_WINDOW_MS);
 
-        // Fetch pending donations that have not yet triggered an expiry alert
-        const donations = await Donation.find({
-            status: 'pending',
-            expiryAlertSent: { $ne: true }
-        }).populate('donor', 'fullName email');
+        // Fetch donations that either:
+        // 1. Need an impending expiry alert (status: pending, no expiry alert sent)
+        // 2. Are past their expiry time and not yet marked expired or delivered/cancelled
 
-        for (const donation of donations) {
+        const activeDonations = await Donation.find({
+            status: { $in: ['pending', 'accepted', 'assigned', 'in_transit', 'picked_up'] }
+        }).populate('donor', 'fullName email')
+          .populate('acceptedBy', 'fullName _id')
+          .populate('assignedTo', 'fullName _id');
+
+        for (const donation of activeDonations) {
             if (!donation.expiryDate || !donation.expiryTime) continue;
 
             const expiryDateTime = new Date(`${donation.expiryDate}T${donation.expiryTime}`);
 
-            // Only act if expiry is within alert window and hasn't passed yet
-            if (expiryDateTime <= now || expiryDateTime > alertCutoff) continue;
+            // --- Action 1: Mark As Expired if Passed ---
+            if (expiryDateTime <= now) {
+                donation.status = 'expired';
+                await donation.save();
+
+                // Notify Donor
+                await createNotification({
+                    recipient: donation.donor._id || donation.donor,
+                    title: '🛑 Food Expired',
+                    message: `Your donation "${donation.foodName}" has expired and the offering has been cancelled.`,
+                    type: 'food_expired',
+                    data: { donationId: donation._id }
+                });
+
+                // Notify NGO if they accepted it
+                if (donation.acceptedBy) {
+                    await createNotification({
+                        recipient: donation.acceptedBy._id || donation.acceptedBy,
+                        title: '🛑 Accepted Food Expired',
+                        message: `The donation "${donation.foodName}" you accepted has expired before pickup. It has been cancelled.`,
+                        type: 'food_expired',
+                        data: { donationId: donation._id }
+                    });
+                }
+
+                // Notify Volunteer if they were assigned
+                if (donation.assignedTo) {
+                    await createNotification({
+                        recipient: donation.assignedTo._id || donation.assignedTo,
+                        title: '🛑 Pickup Cancelled - Food Expired',
+                        message: `Your pickup for "${donation.foodName}" has been cancelled because the food has expired.`,
+                        type: 'food_expired',
+                        data: { donationId: donation._id }
+                    });
+                }
+
+                console.log(`[ExpiryAlert] Marked donation ${donation._id} as expired.`);
+                continue; // Move to next donation
+            }
+
+            // --- Action 2: Send Approaching Expiry Alert ---
+            // Only act if within alert window and hasn't had an alert sent yet
+            if (expiryDateTime > alertCutoff || donation.expiryAlertSent) continue;
+            
+            // Impending expiry alerts only apply if it's still pending
+            if (donation.status !== 'pending') continue;
 
             const minutesLeft = Math.round((expiryDateTime - now) / 60000);
             const size = donation.estimatedServings || donation.quantity || 0;
