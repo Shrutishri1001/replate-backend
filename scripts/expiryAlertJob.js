@@ -16,7 +16,7 @@ const { calculateDistance } = require('../utils/distance');
 
 const ALERT_WINDOW_MS = 2 * 60 * 60 * 1000;   // 2 hours
 const MAX_DISTANCE_KM = 10;
-const INTERVAL_MS = 30 * 60 * 1000;            // 30 minutes
+const INTERVAL_MS = 1 * 60 * 1000;            // 1 minute (for fast expiry detection)
 
 const runExpiryAlerts = async () => {
     try {
@@ -138,7 +138,7 @@ const runExpiryAlerts = async () => {
 };
 
 const startExpiryAlertJob = () => {
-    console.log('[ExpiryAlert] Expiry alert job started — checking every 30 minutes.');
+    console.log('[ExpiryAlert] Expiry alert job started — checking every 1 minute.');
     runExpiryAlerts(); // Run immediately on startup
     setInterval(runExpiryAlerts, INTERVAL_MS);
 };
