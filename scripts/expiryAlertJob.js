@@ -46,7 +46,7 @@ const runExpiryAlerts = async () => {
                 // Notify Donor
                 await createNotification({
                     recipient: donation.donor._id || donation.donor,
-                    title: '🛑 Food Expired',
+                    title: 'Food Expired',
                     message: `Your donation "${donation.foodName}" has expired and the offering has been cancelled.`,
                     type: 'food_expired',
                     data: { donationId: donation._id }
@@ -56,7 +56,7 @@ const runExpiryAlerts = async () => {
                 if (donation.acceptedBy) {
                     await createNotification({
                         recipient: donation.acceptedBy._id || donation.acceptedBy,
-                        title: '🛑 Accepted Food Expired',
+                        title: 'Accepted Food Expired',
                         message: `The donation "${donation.foodName}" you accepted has expired before pickup. It has been cancelled.`,
                         type: 'food_expired',
                         data: { donationId: donation._id }
@@ -67,7 +67,7 @@ const runExpiryAlerts = async () => {
                 if (donation.assignedTo) {
                     await createNotification({
                         recipient: donation.assignedTo._id || donation.assignedTo,
-                        title: '🛑 Pickup Cancelled - Food Expired',
+                        title: 'Pickup Cancelled - Food Expired',
                         message: `Your pickup for "${donation.foodName}" has been cancelled because the food has expired.`,
                         type: 'food_expired',
                         data: { donationId: donation._id }
